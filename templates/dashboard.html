@@ -1,23 +1,93 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <title>Dashboard - Revolution Pay</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <a class="navbar-brand" href="/dashboard">Revolution Pay</a>
-        <ul class="navbar-nav">
-            <li class="nav-item"><a class="nav-link" href="/deposit">Depósito</a></li>
-            <li class="nav-item"><a class="nav-link" href="/withdraw">Saque</a></li>
-            <li class="nav-item"><a class="nav-link" href="/history">Histórico</a></li>
-            <li class="nav-item"><a class="nav-link" href="/logout">Sair</a></li>
-        </ul>
-    </nav>
-    <div class="container mt-5">
-        <h1>Dashboard</h1>
-        <p>Saldo Disponível: R$ {{ available }}</p>
-        <p>Saldo Pendente: R$ {{ pending }}</p>
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Revolution Pay{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <h1 class="mb-4">Olá, <span class="text-primary">{{ user_email }}</span>!</h1>
     </div>
-</body>
-</html>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card text-white bg-success">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title">Saldo Disponível</h5>
+                        <h2 class="display-6">R$ {{ "%.2f"|format(available) }}</h2>
+                    </div>
+                    <i class="fas fa-wallet fa-3x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title">Saldo Pendente</h5>
+                        <h2 class="display-6">R$ {{ "%.2f"|format(pending) }}</h2>
+                    </div>
+                    <i class="fas fa-hourglass-half fa-3x"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Últimas transações</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_transactions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Tipo</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in recent_transactions %}
+                            <tr>
+                                <td>#{{ t.id }}</td>
+                                <td>
+                                    {% if t.type == 'deposit' %}
+                                        <span class="badge bg-info text-dark"><i class="fas fa-arrow-down"></i> Depósito</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark"><i class="fas fa-arrow-up"></i> Saque</span>
+                                    {% endif %}
+                                </td>
+                                <td>R$ {{ "%.2f"|format(t.amount) }}</td>
+                                <td>
+                                    {% if t.status == 'approved' %}
+                                        <span class="badge badge-status bg-success">Aprovado</span>
+                                    {% elif t.status == 'pending' %}
+                                        <span class="badge badge-status bg-warning text-dark">Pendente</span>
+                                    {% else %}
+                                        <span class="badge badge-status bg-danger">Rejeitado</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Nenhuma transação recente.</p>
+                {% endif %}
+                <a href="/history" class="btn btn-outline-primary btn-sm">Ver todas</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
