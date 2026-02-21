@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <title>Saque</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Saque via Pix</h1>
+        <form method="post" action="/withdraw">
+            <div class="mb-3">
+                <label>Valor (centavos)</label>
+                <input type="number" name="amount" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label>Chave Pix</label>
+                <input type="text" name="pix_key" class="form-control" value="{{ pix_key }}" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Sacar</button>
+        </form>
+    </div>
+</body>
+</html>
