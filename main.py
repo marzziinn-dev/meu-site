@@ -132,30 +132,39 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
     except:
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
-    # Simulação de QR Code
-    pix_code = f"pix-{uuid.uuid4().hex[:10]}"
-    qr = qrcode.make(pix_code)
-    buffered = io.BytesIO()
-    qr.save(buffered, format="PNG")
-    qr_base64 = base64.b64encode(buffered.getvalue()).decode()
-    trans = Transaction(
-        user_id=user_id,
-        transaction_id=pix_code,
-        amount=amount,
-        status="pending",
-        type="deposit"
-    )
-    db.add(trans)
-    user.balance_pending += amount
-    db.commit()
-    return templates.TemplateResponse("deposit_confirm.html", {
-        "request": request,
-        "user_logged_in": True,
-        "user_email": user.email,
-        "qr_base64": qr_base64,
-        "pix_code": pix_code,
-        "amount": amount / 100
-    })
+    try:
+        # --- SIMULAÇÃO DE INTEGRAÇÃO COM A PROMISSE ---
+        # Aqui você vai substituir pela chamada real à API
+        pix_code = f"pix-{uuid.uuid4().hex[:10]}"
+        qr = qrcode.make(pix_code)
+        buffered = io.BytesIO()
+        qr.save(buffered, format="PNG")
+        qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+        # ---------------------------------------------
+
+        trans = Transaction(
+            user_id=user_id,
+            transaction_id=pix_code,
+            amount=amount,
+            status="pending",
+            type="deposit"
+        )
+        db.add(trans)
+        user.balance_pending += amount
+        db.commit()
+
+        return templates.TemplateResponse("deposit_confirm.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "qr_base64": qr_base64,
+            "pix_code": pix_code,
+            "amount": amount / 100
+        })
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erro no depósito: {str(e)}")
+        raise HTTPException(500, f"Erro interno no depósito: {str(e)}")
 
 @app.get("/withdraw", response_class=HTMLResponse)
 def withdraw_form(request: Request, db: Session = Depends(get_db)):
@@ -249,13 +258,27 @@ def history(request: Request, db: Session = Depends(get_db)):
     except:
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
-    trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
-    return templates.TemplateResponse("history.html", {
-        "request": request,
-        "user_logged_in": True,
-        "user_email": user.email,
-        "transactions": trans
-    })
+    try:
+        trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
+        # Converte para lista de dicionários para facilitar no template
+        transactions = []
+        for t in trans:
+            transactions.append({
+                "id": t.id,
+                "type": t.type,
+                "amount": t.amount / 100,
+                "status": t.status,
+                "created_at": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else ""
+            })
+        return templates.TemplateResponse("history.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "transactions": transactions
+        })
+    except Exception as e:
+        logger.error(f"Erro no histórico: {str(e)}")
+        raise HTTPException(500, f"Erro interno no histórico: {str(e)}")
 
 @app.get("/settings", response_class=HTMLResponse)
 def settings_form(request: Request, db: Session = Depends(get_db)):
