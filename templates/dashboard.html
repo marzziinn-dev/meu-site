@@ -1,6 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
-<h3>Seu saldo: R$ {{ "%.2f"|format(available) }}</h3>
-<p>Use o menu para navegar.</p>
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card text-center">
+            <div class="card-body">
+                <h5 class="card-title">Bem-vindo, {{ user_email }}!</h5>
+                <p class="display-4">R$ {{ "%.2f"|format(available) }}</p>
+                <p class="text-muted">Saldo disponível</p>
+                <a href="/deposit" class="btn btn-primary">Depositar</a>
+                <a href="/withdraw" class="btn btn-success">Sacar</a>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
