@@ -4,6 +4,7 @@
 <div class="card">
     <div class="card-header">Histórico de transações</div>
     <div class="card-body">
+        {% if transactions %}
         <table class="table">
             <thead>
                 <tr><th>ID</th><th>Tipo</th><th>Valor</th><th>Status</th><th>Data</th></tr>
@@ -13,13 +14,16 @@
                 <tr>
                     <td>{{ t.id }}</td>
                     <td>{{ t.type }}</td>
-                    <td>R$ {{ "%.2f"|format(t.amount/100) }}</td>
+                    <td>R$ {{ "%.2f"|format(t.amount) }}</td>
                     <td>{{ t.status }}</td>
                     <td>{{ t.created_at }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+        {% else %}
+        <p>Nenhuma transação encontrada.</p>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
