@@ -4,12 +4,14 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from models import Base, User, Transaction
-from auth import hash_password, verify_password, create_api_key, create_token, get_current_user_dep
+from auth import hash_password, verify_password, create_api_key, create_token, get_current_user
 import os
 import requests
 import base64
 import io
 import qrcode
+from fastapi import status
+from fastapi.exceptions import HTTPException as FastAPIHTTPException
 
 Base.metadata.create_all(bind=engine)
 
@@ -27,12 +29,11 @@ def get_db():
     finally:
         db.close()
 
-def get_user_or_none(token: str, db: Session):
-    try:
-        user_id = get_current_user(token)
-        return db.query(User).filter(User.id == user_id).first()
-    except:
-        return None
+@app.exception_handler(FastAPIHTTPException)
+async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
+    if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+        return RedirectResponse(url="/")
+    return HTMLResponse(content=f"Erro: {exc.detail}", status_code=exc.status_code)
 
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
@@ -71,10 +72,15 @@ def login(email: str = Form(...), password: str = Form(...), db: Session = Depen
     return response
 
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request, user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
+def dashboard(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    
     user = db.query(User).filter(User.id == user_id).first()
-    # Buscar últimas 5 transações
     recent_transactions = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).limit(5).all()
+    
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "user_logged_in": True,
@@ -88,7 +94,12 @@ def dashboard(request: Request, user_id: int = Depends(get_current_user_dep), db
     })
 
 @app.get("/deposit", response_class=HTMLResponse)
-def deposit_form(request: Request, user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
+def deposit_form(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    
     user = db.query(User).filter(User.id == user_id).first()
     return templates.TemplateResponse("deposit.html", {
         "request": request,
@@ -97,10 +108,14 @@ def deposit_form(request: Request, user_id: int = Depends(get_current_user_dep),
     })
 
 @app.post("/deposit")
-def create_deposit(amount: int = Form(...), user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
+def create_deposit(request: Request, amount: int = Form(...), db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    
     user = db.query(User).filter(User.id == user_id).first()
 
-    # Converte centavos para reais se a API esperar reais
     payload = {
         "amount": amount // 100,
         "storeId": store_id,
@@ -119,10 +134,8 @@ def create_deposit(amount: int = Form(...), user_id: int = Depends(get_current_u
         data = response.json()
 
         trans_id = data["id"]
-        # Ajuste conforme documentação real da Promisse
         pix_code = data.get("end_to_end") or data.get("pix_code") or "pix-code-placeholder"
 
-        # Gera QR code
         qr = qrcode.QRCode()
         qr.add_data(pix_code)
         qr.make(fit=True)
@@ -171,7 +184,12 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     return {"message": "ok"}
 
 @app.get("/withdraw", response_class=HTMLResponse)
-def withdraw_form(request: Request, user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
+def withdraw_form(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    
     user = db.query(User).filter(User.id == user_id).first()
     return templates.TemplateResponse("withdraw.html", {
         "request": request,
@@ -181,7 +199,12 @@ def withdraw_form(request: Request, user_id: int = Depends(get_current_user_dep)
     })
 
 @app.post("/withdraw")
-def create_withdraw(amount: int = Form(...), pix_key: str = Form(None), user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
+def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Form(None), db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    
     user = db.query(User).filter(User.id == user_id).first()
     if user.balance_available < amount:
         raise HTTPException(400, "Saldo insuficiente")
@@ -206,7 +229,6 @@ def create_withdraw(amount: int = Form(...), pix_key: str = Form(None), user_id:
     }
 
     try:
-        # Ajuste o endpoint conforme documentação da Promisse para saques
         response = requests.post(f"{api_base}/withdraws", json=payload, headers=headers)
         if response.status_code not in (200, 201):
             raise HTTPException(500, f"Erro na API: {response.text}")
@@ -230,7 +252,12 @@ def create_withdraw(amount: int = Form(...), pix_key: str = Form(None), user_id:
         raise HTTPException(500, str(e))
 
 @app.get("/history", response_class=HTMLResponse)
-def history(request: Request, user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
+def history(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    
     user = db.query(User).filter(User.id == user_id).first()
     trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
     return templates.TemplateResponse("history.html", {
