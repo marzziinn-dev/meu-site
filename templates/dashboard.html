@@ -69,11 +69,15 @@
                                     <span class="badge bg-info"><i class="bi bi-arrow-down"></i> Depósito</span>
                                 {% elif t.type == 'withdraw' %}
                                     <span class="badge bg-warning"><i class="bi bi-arrow-up"></i> Saque</span>
+                                {% elif t.type == 'transfer_in' %}
+                                    <span class="badge bg-success"><i class="bi bi-arrow-left"></i> Transferência Recebida</span>
+                                {% elif t.type == 'transfer_out' %}
+                                    <span class="badge bg-secondary"><i class="bi bi-arrow-right"></i> Transferência Enviada</span>
                                 {% else %}
                                     <span class="badge bg-secondary">{{ t.type }}</span>
                                 {% endif %}
                             </td>
-                            <td>R$ {{ "%.2f"|format(t.amount) }}</td>
+                            <td>R$ {{ "%.2f"|format(t.amount|abs) }}</td>
                             <td>
                                 {% if t.status == 'approved' %}
                                     <span class="badge bg-success">Aprovado</span>
@@ -94,7 +98,6 @@
 </div>
 
 <script>
-    // Gráfico de transações por hora
     const ctx = document.getElementById('transactionsChart').getContext('2d');
     const chart = new Chart(ctx, {
         type: 'line',
