@@ -4,49 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Revolution Pay{% endblock %}</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        #sidebar {
-            position: fixed;
-            top: 0;
-            left: -250px;
-            width: 250px;
-            height: 100%;
-            background: #343a40;
-            color: white;
-            transition: 0.3s;
-            padding-top: 60px;
-            z-index: 1000;
-        }
-        #sidebar.active {
-            left: 0;
-        }
-        #sidebar a {
-            padding: 10px 15px;
-            display: block;
-            color: #ddd;
-            text-decoration: none;
-        }
-        #sidebar a:hover {
-            background: #007bff;
-            color: white;
-        }
-        #content {
-            margin-left: 0;
-            transition: 0.3s;
-            padding: 20px;
-        }
-        #content.shifted {
-            margin-left: 250px;
-        }
-        .menu-toggle {
-            font-size: 1.8rem;
-            cursor: pointer;
-        }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .menu { position: fixed; top: 0; left: 0; width: 200px; height: 100%; background: #333; padding: 20px; display: none; }
+        .menu.active { display: block; }
+        .menu a { color: white; display: block; padding: 10px; text-decoration: none; }
+        .menu a:hover { background: #555; }
+        .content { margin-left: 0; }
+        .content.shifted { margin-left: 200px; }
+        .menu-toggle { font-size: 24px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div id="sidebar">
+    <div class="menu" id="sidebar">
         <a href="/dashboard">Dashboard</a>
         <a href="/deposit">Depositar</a>
         <a href="/withdraw">Sacar</a>
@@ -56,22 +26,11 @@
         <a href="/logout">Sair</a>
     </div>
 
-    <div id="content">
-        <nav class="navbar navbar-light bg-light">
-            <div class="container-fluid">
-                <span class="menu-toggle" onclick="toggleMenu()">☰</span>
-                <span class="navbar-text">{{ user_email }}</span>
-            </div>
-        </nav>
+    <div class="content" id="content">
+        <span class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('active'); document.getElementById('content').classList.toggle('shifted');">☰</span>
+        <h2>Bem-vindo, {{ user_email }}</h2>
+        <hr>
         {% block content %}{% endblock %}
     </div>
-
-    <script>
-        function toggleMenu() {
-            document.getElementById('sidebar').classList.toggle('active');
-            document.getElementById('content').classList.toggle('shifted');
-        }
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
