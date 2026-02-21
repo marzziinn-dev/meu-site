@@ -208,3 +208,6 @@ def logout():
     response = RedirectResponse("/")
     response.delete_cookie("access_token")
     return response
+@app.get("/register", response_class=HTMLResponse)
+def register_form(request: Request):
+    return templates.TemplateResponse("register.html", {"request": request})
