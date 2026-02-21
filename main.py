@@ -2,6 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from database import SessionLocal, engine
 from models import Base, User, Transaction
 from auth import hash_password, verify_password, create_api_key, create_token, get_current_user
@@ -13,7 +14,15 @@ import qrcode
 from fastapi import status
 from fastapi.exceptions import HTTPException as FastAPIHTTPException
 
+# Cria as tabelas se não existirem
 Base.metadata.create_all(bind=engine)
+
+# ===== CORREÇÃO AUTOMÁTICA DA COLUNA PIX_KEY =====
+# Executa uma vez na inicialização para garantir que a coluna exista
+with engine.connect() as conn:
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pix_key VARCHAR;"))
+    conn.commit()
+# =================================================
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
