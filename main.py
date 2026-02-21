@@ -93,63 +93,11 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     except HTTPException:
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
-
-    total_sales = db.query(func.sum(Transaction.amount)).filter(
-        Transaction.user_id == user_id,
-        Transaction.type == 'deposit',
-        Transaction.status == 'approved'
-    ).scalar() or 0
-
-    total_withdrawn = db.query(func.sum(Transaction.amount)).filter(
-        Transaction.user_id == user_id,
-        Transaction.type == 'withdraw',
-        Transaction.status == 'approved'
-    ).scalar() or 0
-
-    last_24h = datetime.now() - timedelta(hours=24)
-    hourly_data = db.query(
-        func.extract('hour', Transaction.created_at).label('hour'),
-        func.count(Transaction.id).label('count')
-    ).filter(
-        Transaction.user_id == user_id,
-        Transaction.created_at >= last_24h
-    ).group_by('hour').order_by('hour').all()
-
-    hours = [int(h[0]) for h in hourly_data]
-    counts = [h[1] for h in hourly_data]
-    all_hours = list(range(24))
-    full_counts = []
-    for h in all_hours:
-        if h in hours:
-            idx = hours.index(h)
-            full_counts.append(counts[idx])
-        else:
-            full_counts.append(0)
-
-    recent = db.query(Transaction).filter(
-        Transaction.user_id == user_id
-    ).order_by(Transaction.id.desc()).limit(10).all()
-
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "user_logged_in": True,
         "user_email": user.email,
-        "available": user.balance_available / 100,
-        "pending": user.balance_pending / 100,
-        "total_sales": abs(total_sales) / 100,
-        "total_withdrawn": abs(total_withdrawn) / 100,
-        "hours": all_hours,
-        "counts": full_counts,
-        "recent_transactions": [
-            {
-                "id": t.id,
-                "amount": t.amount / 100,
-                "status": t.status,
-                "type": t.type,
-                "created_at": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else ""
-            }
-            for t in recent
-        ]
+        "available": user.balance_available / 100
     })
 
 @app.get("/deposit", response_class=HTMLResponse)
