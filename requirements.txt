@@ -8,5 +8,6 @@ passlib[bcrypt]
 requests
 python-dotenv
 jinja2
-qrcode[pil]  # Para gerar QR
-gunicorn  # Para deploy
+qrcode[pil]
+pillow
+gunicorn
