@@ -3,26 +3,17 @@ from jose import jwt, JWTError
 import uuid
 import os
 from fastapi import HTTPException, status, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Optional
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 
-class TokenFromCookieOrHeader(HTTPBearer):
-    async def __call__(self, request: Request) -> Optional[HTTPAuthorizationCredentials]:
-        token = request.cookies.get("access_token")
-        if token:
-            return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
-        try:
-            return await super().__call__(request)
-        except:
-            return None
-
-oauth2_scheme = TokenFromCookieOrHeader(auto_error=False)
-
 def hash_password(password):
+    # Garante que a senha não ultrapasse 72 bytes
+    if isinstance(password, str):
+        password_bytes = password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password = password_bytes[:72].decode('utf-8', errors='ignore')
     return pwd_context.hash(password)
 
 def verify_password(password, hashed):
