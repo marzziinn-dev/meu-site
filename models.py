@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy.sql import func
 from database import Base
 
 class User(Base):
@@ -21,3 +22,4 @@ class Transaction(Base):
     amount = Column(Integer)
     status = Column(String)
     type = Column(String)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
