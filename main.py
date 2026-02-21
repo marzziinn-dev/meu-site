@@ -54,19 +54,16 @@ def register_form(request: Request):
 @app.post("/register")
 def register(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     try:
-        # LOGS para depuração
         print(f"Tentando registrar: {email}")
         print(f"Senha recebida: {password}")
         print(f"Tamanho da senha: {len(password)} caracteres")
         print(f"Tamanho em bytes: {len(password.encode('utf-8'))}")
 
-        # Verifica se email já existe
         existing = db.query(User).filter(User.email == email).first()
         if existing:
             print("Email já existe")
             raise HTTPException(400, "Email já existe")
         
-        # Hash da senha (agora com tratamento interno)
         hashed = hash_password(password)
         print(f"Hash gerado: {hashed[:50]}...")
 
@@ -116,9 +113,198 @@ def login(email: str = Form(...), password: str = Form(...), db: Session = Depen
         traceback.print_exc()
         raise HTTPException(500, f"Erro interno: {str(e)}")
 
-# (O restante do código permanece igual – dashboard, deposit, withdraw, history, logout)
-# Cole abaixo todas as outras rotas que estavam no main.py anterior, a partir de @app.get("/dashboard")
-# Para economizar espaço, não vou repetir tudo aqui, mas você deve manter as outras rotas inalteradas.
-# Se preferir, posso fornecer o arquivo completo novamente, mas o essencial é a alteração no auth.py e os logs na rota de registro.
+@app.get("/dashboard", response_class=HTMLResponse)
+def dashboard(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    recent_transactions = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).limit(5).all()
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "available": user.balance_available / 100,
+        "pending": user.balance_pending / 100,
+        "recent_transactions": [
+            {"id": t.id, "amount": t.amount / 100, "status": t.status, "type": t.type}
+            for t in recent_transactions
+        ]
+    })
 
-# ... (aqui você cola o resto das rotas do main.py que eu já enviei antes, sem alterações)
+@app.get("/deposit", response_class=HTMLResponse)
+def deposit_form(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("deposit.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email
+    })
+
+@app.post("/deposit")
+def create_deposit(request: Request, amount: int = Form(...), db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+
+    payload = {
+        "amount": amount // 100,
+        "storeId": store_id,
+        "webhookUrl": "https://revolution-pay.onrender.com/webhook",
+    }
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.post(f"{api_base}/transactions", json=payload, headers=headers)
+        if response.status_code not in (200, 201):
+            raise HTTPException(500, f"Erro na API: {response.text}")
+        data = response.json()
+
+        trans_id = data["id"]
+        pix_code = data.get("end_to_end") or data.get("pix_code") or "pix-code-placeholder"
+
+        qr = qrcode.QRCode()
+        qr.add_data(pix_code)
+        qr.make(fit=True)
+        img = qr.make_image(fill="black", back_color="white")
+        buffered = io.BytesIO()
+        img.save(buffered, format="PNG")
+        qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+
+        trans = Transaction(
+            user_id=user_id,
+            transaction_id=trans_id,
+            amount=amount,
+            status="pending",
+            type="deposit"
+        )
+        db.add(trans)
+        user.balance_pending += amount
+        db.commit()
+
+        return templates.TemplateResponse("deposit_confirm.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "qr_base64": qr_base64,
+            "pix_code": pix_code,
+            "amount": amount / 100
+        })
+    except Exception as e:
+        db.rollback()
+        print(f"ERRO NO DEPÓSITO: {str(e)}")
+        raise HTTPException(500, str(e))
+
+@app.post("/webhook")
+async def webhook(request: Request, db: Session = Depends(get_db)):
+    data = await request.json()
+    trans_id = data.get("id")
+    status = data.get("status")
+
+    if status == "paid":
+        trans = db.query(Transaction).filter(Transaction.transaction_id == trans_id).first()
+        if trans:
+            user = db.query(User).filter(User.id == trans.user_id).first()
+            user.balance_pending -= trans.amount
+            user.balance_available += trans.amount
+            trans.status = "approved"
+            db.commit()
+    return {"message": "ok"}
+
+@app.get("/withdraw", response_class=HTMLResponse)
+def withdraw_form(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("withdraw.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "pix_key": user.pix_key
+    })
+
+@app.post("/withdraw")
+def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Form(None), db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    if user.balance_available < amount:
+        raise HTTPException(400, "Saldo insuficiente")
+    key = pix_key or user.pix_key
+    if not key:
+        raise HTTPException(400, "Informe chave Pix")
+    if pix_key:
+        user.pix_key = pix_key
+
+    payload = {
+        "amount": amount // 100,
+        "storeId": store_id,
+        "webhookUrl": "https://revolution-pay.onrender.com/webhook",
+        "receiver": {
+            "pix_key": key
+        }
+    }
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.post(f"{api_base}/withdraws", json=payload, headers=headers)
+        if response.status_code not in (200, 201):
+            raise HTTPException(500, f"Erro na API: {response.text}")
+        data = response.json()
+        trans_id = data["id"]
+
+        trans = Transaction(
+            user_id=user_id,
+            transaction_id=trans_id,
+            amount=-amount,
+            status="pending",
+            type="withdraw"
+        )
+        db.add(trans)
+        user.balance_available -= amount
+        db.commit()
+        return RedirectResponse("/dashboard", status_code=302)
+    except Exception as e:
+        db.rollback()
+        print(f"ERRO NO SAQUE: {str(e)}")
+        raise HTTPException(500, str(e))
+
+@app.get("/history", response_class=HTMLResponse)
+def history(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
+    return templates.TemplateResponse("history.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "transactions": [{"id": t.id, "amount": t.amount / 100, "status": t.status, "type": t.type} for t in trans]
+    })
+
+@app.get("/logout")
+def logout():
+    response = RedirectResponse("/", status_code=302)
+    response.delete_cookie("access_token")
+    return response
