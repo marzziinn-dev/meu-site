@@ -6,7 +6,6 @@
     <title>{% block title %}Revolution Pay{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             background-color: #f4f6f9;
@@ -26,9 +25,10 @@
             position: fixed;
             height: 100vh;
             z-index: 999;
+            left: -250px;
         }
         #sidebar.active {
-            margin-left: -250px;
+            left: 0;
         }
         #sidebar .sidebar-header {
             padding: 20px;
@@ -38,22 +38,19 @@
             padding: 20px 0;
             border-bottom: 1px solid #47748b;
         }
-        #sidebar ul p {
-            color: #fff;
-            padding: 10px;
-        }
         #sidebar ul li a {
             padding: 10px 20px;
             font-size: 1.1em;
             display: block;
             color: #ddd;
             text-decoration: none;
+            cursor: pointer;
         }
         #sidebar ul li a:hover {
             color: #fff;
             background: #007bff;
         }
-        #sidebar ul li.active > a, a[aria-expanded="true"] {
+        #sidebar ul li.active > a {
             color: #fff;
             background: #007bff;
         }
@@ -67,10 +64,9 @@
             padding: 20px;
             min-height: 100vh;
             transition: all 0.3s;
-            margin-left: 250px;
         }
-        #content.active {
-            margin-left: 0;
+        #content.shifted {
+            margin-left: 250px;
         }
         .navbar {
             padding: 15px 10px;
@@ -80,18 +76,10 @@
             margin-bottom: 20px;
             box-shadow: 1px 1px 3px rgba(0,0,0,0.1);
         }
-        .navbar-btn {
-            box-shadow: none;
-            outline: none !important;
-            border: none;
-        }
-        .card-dashboard {
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.2s;
-        }
-        .card-dashboard:hover {
-            transform: translateY(-5px);
+        .menu-toggle {
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #007bff;
         }
     </style>
     {% block extra_css %}{% endblock %}
@@ -103,10 +91,10 @@
                 <h3><i class="bi bi-bolt"></i> Revolution Pay</h3>
             </div>
             <ul class="list-unstyled components">
-                <li class="{% if request.url.path == '/dashboard' %}active{% endif %}">
+                <li>
                     <a href="/dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a>
                 </li>
-                <li class="{% if request.url.path in ['/deposit', '/withdraw', '/transfer'] %}active{% endif %}">
+                <li>
                     <a href="#transferSubmenu" data-bs-toggle="collapse" aria-expanded="false" class="dropdown-toggle">
                         <i class="bi bi-arrow-left-right"></i> Transferências
                     </a>
@@ -116,33 +104,26 @@
                         <li><a href="/transfer"><i class="bi bi-send"></i> Transferir</a></li>
                     </ul>
                 </li>
-                <li class="{% if request.url.path == '/history' %}active{% endif %}">
+                <li>
                     <a href="/history"><i class="bi bi-clock-history"></i> Transações</a>
                 </li>
-                <li class="{% if request.url.path == '/settings' %}active{% endif %}">
+                <li>
                     <a href="/settings"><i class="bi bi-gear"></i> Configurações</a>
                 </li>
-            </ul>
-            <ul class="list-unstyled">
-                <li><a href="/logout"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
+                <li>
+                    <a href="/logout"><i class="bi bi-box-arrow-right"></i> Sair</a>
+                </li>
             </ul>
         </nav>
 
         <div id="content">
             <nav class="navbar navbar-expand-lg">
                 <div class="container-fluid">
-                    <button type="button" id="sidebarCollapse" class="btn btn-info">
+                    <span class="menu-toggle" id="sidebarCollapse">
                         <i class="bi bi-list"></i>
-                    </button>
-                    <div class="dropdown ms-auto">
-                        <button class="btn btn-secondary dropdown-toggle" type="button" id="userMenu" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i> {{ user_email }}
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="/settings"><i class="bi bi-gear"></i> Configurações</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/logout"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
-                        </ul>
+                    </span>
+                    <div class="ms-auto">
+                        <span class="text-muted"><i class="bi bi-person-circle"></i> {{ user_email }}</span>
                     </div>
                 </div>
             </nav>
@@ -152,12 +133,10 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        $(document).ready(function () {
-            $('#sidebarCollapse').on('click', function () {
-                $('#sidebar, #content').toggleClass('active');
-            });
+        document.getElementById('sidebarCollapse').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.getElementById('content').classList.toggle('shifted');
         });
     </script>
     {% block extra_js %}{% endblock %}
