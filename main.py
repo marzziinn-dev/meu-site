@@ -19,7 +19,7 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 api_base = os.getenv("API_BASE", "https://api.promisse.com.br/v1")
-api_key = os.getenv("PROMISSE_API_KEY")
+api_key = os.getenv("PROMISSE_API_KEY")  # Verifique se no Render é PROMISSE_API_KEY ou PROMISE_API_KEY
 store_id = os.getenv("PROMISSE_STORE_ID")
 
 def get_db():
@@ -45,31 +45,39 @@ def register_form(request: Request):
 
 @app.post("/register")
 def register(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == email).first()
-    if existing:
-        raise HTTPException(400, "Email já existe")
-    user = User(
-        email=email,
-        password=hash_password(password),
-        api_key=create_api_key()
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    token = create_token({"sub": user.id})
-    response = RedirectResponse(url="/dashboard", status_code=302)
-    response.set_cookie(key="access_token", value=token)
-    return response
+    try:
+        existing = db.query(User).filter(User.email == email).first()
+        if existing:
+            raise HTTPException(400, "Email já existe")
+        user = User(
+            email=email,
+            password=hash_password(password),
+            api_key=create_api_key()
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        token = create_token({"sub": user.id})
+        response = RedirectResponse(url="/dashboard", status_code=302)
+        response.set_cookie(key="access_token", value=token)
+        return response
+    except Exception as e:
+        print(f"ERRO NO REGISTRO: {str(e)}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
 
 @app.post("/login")
 def login(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == email).first()
-    if not user or not verify_password(password, user.password):
-        raise HTTPException(400, "Credenciais inválidas")
-    token = create_token({"sub": user.id})
-    response = RedirectResponse(url="/dashboard", status_code=302)
-    response.set_cookie(key="access_token", value=token)
-    return response
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user or not verify_password(password, user.password):
+            raise HTTPException(400, "Credenciais inválidas")
+        token = create_token({"sub": user.id})
+        response = RedirectResponse(url="/dashboard", status_code=302)
+        response.set_cookie(key="access_token", value=token)
+        return response
+    except Exception as e:
+        print(f"ERRO NO LOGIN: {str(e)}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_db)):
@@ -77,10 +85,8 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         user_id = get_current_user(request)
     except HTTPException:
         return RedirectResponse(url="/")
-    
     user = db.query(User).filter(User.id == user_id).first()
     recent_transactions = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).limit(5).all()
-    
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "user_logged_in": True,
@@ -99,7 +105,6 @@ def deposit_form(request: Request, db: Session = Depends(get_db)):
         user_id = get_current_user(request)
     except HTTPException:
         return RedirectResponse(url="/")
-    
     user = db.query(User).filter(User.id == user_id).first()
     return templates.TemplateResponse("deposit.html", {
         "request": request,
@@ -113,7 +118,6 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         user_id = get_current_user(request)
     except HTTPException:
         return RedirectResponse(url="/")
-    
     user = db.query(User).filter(User.id == user_id).first()
 
     payload = {
@@ -164,6 +168,8 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "amount": amount / 100
         })
     except Exception as e:
+        db.rollback()
+        print(f"ERRO NO DEPÓSITO: {str(e)}")
         raise HTTPException(500, str(e))
 
 @app.post("/webhook")
@@ -180,7 +186,6 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
             user.balance_available += trans.amount
             trans.status = "approved"
             db.commit()
-
     return {"message": "ok"}
 
 @app.get("/withdraw", response_class=HTMLResponse)
@@ -189,7 +194,6 @@ def withdraw_form(request: Request, db: Session = Depends(get_db)):
         user_id = get_current_user(request)
     except HTTPException:
         return RedirectResponse(url="/")
-    
     user = db.query(User).filter(User.id == user_id).first()
     return templates.TemplateResponse("withdraw.html", {
         "request": request,
@@ -204,7 +208,6 @@ def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Fo
         user_id = get_current_user(request)
     except HTTPException:
         return RedirectResponse(url="/")
-    
     user = db.query(User).filter(User.id == user_id).first()
     if user.balance_available < amount:
         raise HTTPException(400, "Saldo insuficiente")
@@ -233,7 +236,6 @@ def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Fo
         if response.status_code not in (200, 201):
             raise HTTPException(500, f"Erro na API: {response.text}")
         data = response.json()
-
         trans_id = data["id"]
 
         trans = Transaction(
@@ -246,9 +248,10 @@ def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Fo
         db.add(trans)
         user.balance_available -= amount
         db.commit()
-
         return RedirectResponse("/dashboard", status_code=302)
     except Exception as e:
+        db.rollback()
+        print(f"ERRO NO SAQUE: {str(e)}")
         raise HTTPException(500, str(e))
 
 @app.get("/history", response_class=HTMLResponse)
@@ -257,7 +260,6 @@ def history(request: Request, db: Session = Depends(get_db)):
         user_id = get_current_user(request)
     except HTTPException:
         return RedirectResponse(url="/")
-    
     user = db.query(User).filter(User.id == user_id).first()
     trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
     return templates.TemplateResponse("history.html", {
