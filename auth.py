@@ -2,7 +2,7 @@ import bcrypt
 from jose import jwt, JWTError
 import uuid
 import os
-from fastapi import HTTPException, status, Request
+from fastapi import HTTPException, Request
 import logging
 
 logger = logging.getLogger(__name__)
@@ -51,5 +51,5 @@ def get_current_user(request: Request):
             raise HTTPException(status_code=401, detail="Token inválido: sem sub")
         return user_id
     except JWTError as e:
-        logger.error(f"JWTError: {str(e)}")
+        logger.error(f"JWTError detalhado: {str(e)}")
         raise HTTPException(status_code=401, detail=f"Token inválido: {str(e)}")
