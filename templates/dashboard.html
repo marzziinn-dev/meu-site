@@ -1,9 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Bem-vindo{% endblock %}
+{% block title %}Dashboard{% endblock %}
 {% block content %}
 <div class="text-center mt-5">
     <h1>Bem-vindo, {{ user_email }}!</h1>
-    <p class="lead">Seu saldo disponível: <strong>R$ {{ "%.2f"|format(available) }}</strong></p>
-    <p>Use o menu ☰ para navegar.</p>
+    <p class="lead">Saldo disponível: R$ {{ "%.2f"|format(available) }}</p>
 </div>
 {% endblock %}
