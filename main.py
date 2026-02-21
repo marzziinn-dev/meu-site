@@ -18,7 +18,7 @@ templates = Jinja2Templates(directory="templates")
 
 api_base = os.getenv("API_BASE", "https://api.promisse.com.br/v1")
 api_key = os.getenv("PROMISSE_API_KEY")
-store_id = os.getenv("PROMISSE_STORE_ID")  # Adicione no .env do dashboard
+store_id = os.getenv("PROMISSE_STORE_ID")
 
 def get_db():
     db = SessionLocal()
@@ -27,9 +27,20 @@ def get_db():
     finally:
         db.close()
 
+def get_user_or_none(token: str, db: Session):
+    try:
+        user_id = get_current_user(token)
+        return db.query(User).filter(User.id == user_id).first()
+    except:
+        return None
+
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse("login.html", {"request": request, "user_logged_in": False})
+
+@app.get("/register", response_class=HTMLResponse)
+def register_form(request: Request):
+    return templates.TemplateResponse("register.html", {"request": request, "user_logged_in": False})
 
 @app.post("/register")
 def register(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
@@ -45,7 +56,7 @@ def register(email: str = Form(...), password: str = Form(...), db: Session = De
     db.commit()
     db.refresh(user)
     token = create_token({"sub": user.id})
-    response = RedirectResponse(url="/dashboard")
+    response = RedirectResponse(url="/dashboard", status_code=302)
     response.set_cookie(key="access_token", value=token)
     return response
 
@@ -55,50 +66,63 @@ def login(email: str = Form(...), password: str = Form(...), db: Session = Depen
     if not user or not verify_password(password, user.password):
         raise HTTPException(400, "Credenciais inválidas")
     token = create_token({"sub": user.id})
-    response = RedirectResponse(url="/dashboard")
+    response = RedirectResponse(url="/dashboard", status_code=302)
     response.set_cookie(key="access_token", value=token)
     return response
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
+    # Buscar últimas 5 transações
+    recent_transactions = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).limit(5).all()
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
         "available": user.balance_available / 100,
-        "pending": user.balance_pending / 100
+        "pending": user.balance_pending / 100,
+        "recent_transactions": [
+            {"id": t.id, "amount": t.amount / 100, "status": t.status, "type": t.type}
+            for t in recent_transactions
+        ]
     })
 
 @app.get("/deposit", response_class=HTMLResponse)
-def deposit_form(request: Request, user_id: int = Depends(get_current_user)):
-    return templates.TemplateResponse("deposit.html", {"request": request})
+def deposit_form(request: Request, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("deposit.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email
+    })
 
 @app.post("/deposit")
 def create_deposit(amount: int = Form(...), user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
-    
+
+    # Converte centavos para reais se a API esperar reais
     payload = {
-        "amount": amount // 100,  # Assuma reais; ajuste se centavos
+        "amount": amount // 100,
         "storeId": store_id,
         "webhookUrl": "https://revolution-pay.onrender.com/webhook",
-        # Adicione mais campos se doc exigir, ex: "payer": {"name": "...", "document": "..."}
     }
-    
+
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
-    
+
     try:
         response = requests.post(f"{api_base}/transactions", json=payload, headers=headers)
         if response.status_code not in (200, 201):
-            raise HTTPException(500, f"Erro: {response.text}")
+            raise HTTPException(500, f"Erro na API: {response.text}")
         data = response.json()
-        
+
         trans_id = data["id"]
-        # Assuma campos para Pix; ajuste com doc real (ex: data["end_to_end"] ou "pix_code")
-        pix_code = data.get("end_to_end") or "pix-code-from-response"  # Ajuste
-        
-        # Gere QR com qrcode
+        # Ajuste conforme documentação real da Promisse
+        pix_code = data.get("end_to_end") or data.get("pix_code") or "pix-code-placeholder"
+
+        # Gera QR code
         qr = qrcode.QRCode()
         qr.add_data(pix_code)
         qr.make(fit=True)
@@ -106,7 +130,7 @@ def create_deposit(amount: int = Form(...), user_id: int = Depends(get_current_u
         buffered = io.BytesIO()
         img.save(buffered, format="PNG")
         qr_base64 = base64.b64encode(buffered.getvalue()).decode()
-        
+
         trans = Transaction(
             user_id=user_id,
             transaction_id=trans_id,
@@ -117,9 +141,11 @@ def create_deposit(amount: int = Form(...), user_id: int = Depends(get_current_u
         db.add(trans)
         user.balance_pending += amount
         db.commit()
-        
+
         return templates.TemplateResponse("deposit_confirm.html", {
             "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
             "qr_base64": qr_base64,
             "pix_code": pix_code,
             "amount": amount / 100
@@ -132,7 +158,7 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     data = await request.json()
     trans_id = data.get("id")
     status = data.get("status")
-    
+
     if status == "paid":
         trans = db.query(Transaction).filter(Transaction.transaction_id == trans_id).first()
         if trans:
@@ -141,13 +167,18 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
             user.balance_available += trans.amount
             trans.status = "approved"
             db.commit()
-    
+
     return {"message": "ok"}
 
 @app.get("/withdraw", response_class=HTMLResponse)
 def withdraw_form(request: Request, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
-    return templates.TemplateResponse("withdraw.html", {"request": request, "pix_key": user.pix_key})
+    return templates.TemplateResponse("withdraw.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "pix_key": user.pix_key
+    })
 
 @app.post("/withdraw")
 def create_withdraw(amount: int = Form(...), pix_key: str = Form(None), user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -159,30 +190,30 @@ def create_withdraw(amount: int = Form(...), pix_key: str = Form(None), user_id:
         raise HTTPException(400, "Informe chave Pix")
     if pix_key:
         user.pix_key = pix_key
-    
+
     payload = {
         "amount": amount // 100,
         "storeId": store_id,
         "webhookUrl": "https://revolution-pay.onrender.com/webhook",
-        "receiver": {  # Assuma schema para saque
-            "pix_key": key,
-            # "name": "...", "document": "..."
+        "receiver": {
+            "pix_key": key
         }
     }
-    
+
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
-    
+
     try:
-        response = requests.post(f"{api_base}/withdraws", json=payload, headers=headers)  # Assuma /withdraws; ajuste para endpoint real
+        # Ajuste o endpoint conforme documentação da Promisse para saques
+        response = requests.post(f"{api_base}/withdraws", json=payload, headers=headers)
         if response.status_code not in (200, 201):
-            raise HTTPException(500, f"Erro: {response.text}")
+            raise HTTPException(500, f"Erro na API: {response.text}")
         data = response.json()
-        
+
         trans_id = data["id"]
-        
+
         trans = Transaction(
             user_id=user_id,
             transaction_id=trans_id,
@@ -193,21 +224,24 @@ def create_withdraw(amount: int = Form(...), pix_key: str = Form(None), user_id:
         db.add(trans)
         user.balance_available -= amount
         db.commit()
-        
-        return RedirectResponse("/dashboard")
+
+        return RedirectResponse("/dashboard", status_code=302)
     except Exception as e:
         raise HTTPException(500, str(e))
 
 @app.get("/history", response_class=HTMLResponse)
 def history(request: Request, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
-    trans = db.query(Transaction).filter(Transaction.user_id == user_id).all()
-    return templates.TemplateResponse("history.html", {"request": request, "transactions": [{"id": t.id, "amount": t.amount / 100, "status": t.status, "type": t.type} for t in trans]})
+    user = db.query(User).filter(User.id == user_id).first()
+    trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
+    return templates.TemplateResponse("history.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "transactions": [{"id": t.id, "amount": t.amount / 100, "status": t.status, "type": t.type} for t in trans]
+    })
 
 @app.get("/logout")
 def logout():
-    response = RedirectResponse("/")
+    response = RedirectResponse("/", status_code=302)
     response.delete_cookie("access_token")
     return response
-@app.get("/register", response_class=HTMLResponse)
-def register_form(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
