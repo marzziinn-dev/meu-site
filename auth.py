@@ -1,23 +1,36 @@
-from passlib.context import CryptContext
+import bcrypt
 from jose import jwt, JWTError
 import uuid
 import os
 from fastapi import HTTPException, status, Request
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 
 def hash_password(password):
-    # Garante que a senha não ultrapasse 72 bytes
+    # Converte para bytes e trunca para 72 bytes se necessário
     if isinstance(password, str):
         password_bytes = password.encode('utf-8')
-        if len(password_bytes) > 72:
-            password = password_bytes[:72].decode('utf-8', errors='ignore')
-    return pwd_context.hash(password)
+    else:
+        password_bytes = password
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 def verify_password(password, hashed):
-    return pwd_context.verify(password, hashed)
+    if isinstance(password, str):
+        password_bytes = password.encode('utf-8')
+    else:
+        password_bytes = password
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+    if isinstance(hashed, str):
+        hashed_bytes = hashed.encode('utf-8')
+    else:
+        hashed_bytes = hashed
+    return bcrypt.checkpw(password_bytes, hashed_bytes)
 
 def create_api_key():
     return str(uuid.uuid4())
