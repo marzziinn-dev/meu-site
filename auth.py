@@ -1,10 +1,14 @@
 from passlib.context import CryptContext
-from jose import jwt
+from jose import jwt, JWTError
 import uuid
 import os
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = "HS256"
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 def hash_password(password):
     return pwd_context.hash(password)
@@ -16,4 +20,14 @@ def create_api_key():
     return str(uuid.uuid4())
 
 def create_token(data: dict):
-    return jwt.encode(data, SECRET_KEY, algorithm="HS256")
+    return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: int = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        return user_id
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
