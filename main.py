@@ -12,6 +12,7 @@ import uuid
 import qrcode
 import base64
 import io
+import requests
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,9 +21,7 @@ Base.metadata.create_all(bind=engine)
 
 # ===== CORREÇÃO DAS TABELAS =====
 with engine.connect() as conn:
-    # Adiciona coluna pix_key em users se não existir
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pix_key VARCHAR;"))
-    # Adiciona todas as colunas necessárias em transactions
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS user_id INTEGER;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_id VARCHAR;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS amount INTEGER;"))
@@ -35,8 +34,15 @@ with engine.connect() as conn:
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
+# Variáveis de ambiente da Promisse
+api_base = os.getenv("API_BASE", "https://api.promisse.com.br/v1")
+api_key = os.getenv("PROMISSE_API_KEY")
+store_id = os.getenv("PROMISSE_STORE_ID")
+
 SECRET_KEY = os.getenv("SECRET_KEY")
 logger.info(f"SECRET_KEY definida: {'sim' if SECRET_KEY else 'não'}")
+logger.info(f"PROMISSE_API_KEY definida: {'sim' if api_key else 'não'}")
+logger.info(f"PROMISSE_STORE_ID definida: {'sim' if store_id else 'não'}")
 
 def get_db():
     db = SessionLocal()
@@ -143,16 +149,55 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
     try:
-        # Simulação de integração com a Promisse
-        pix_code = f"pix-{uuid.uuid4().hex[:10]}"
+        # --- INTEGRAÇÃO COM A API DA PROMISSE ---
+        # Converte centavos para reais (a API da Promisse trabalha com reais)
+        amount_real = amount / 100
+        payload = {
+            "amount": amount_real,
+            "storeId": store_id,
+            "webhookUrl": "https://revolution-pay.onrender.com/webhook",  # Seu webhook
+            # Opcional: dados do pagador (se necessário)
+            # "payer": {
+            #     "name": user.email.split('@')[0],
+            #     "email": user.email
+            # }
+        }
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+
+        # Faz a requisição para criar a transação Pix
+        response = requests.post(f"{api_base}/transactions", json=payload, headers=headers)
+        if response.status_code not in (200, 201):
+            logger.error(f"Erro na API Promisse: {response.text}")
+            return templates.TemplateResponse("error.html", {
+                "request": request,
+                "user_logged_in": True,
+                "user_email": user.email,
+                "error_message": f"Erro na API de pagamento: {response.status_code}",
+                "back_url": "/deposit"
+            }, status_code=400)
+
+        data = response.json()
+        logger.info(f"Resposta da API: {data}")
+
+        # Extrai o código Pix do retorno (campo pode variar; testei com brcode, pix_code, qr_code)
+        pix_code = data.get("brcode") or data.get("pix_code") or data.get("qr_code") or data.get("end_to_end")
+        if not pix_code:
+            raise HTTPException(500, "Código Pix não encontrado na resposta da API")
+
+        # Gera o QR code a partir do código Pix
         qr = qrcode.make(pix_code)
         buffered = io.BytesIO()
         qr.save(buffered, format="PNG")
         qr_base64 = base64.b64encode(buffered.getvalue()).decode()
 
+        # Salva a transação no banco
         trans = Transaction(
             user_id=user_id,
-            transaction_id=pix_code,
+            transaction_id=data.get("id", pix_code[:20]),  # Usa o ID da transação retornado
             amount=amount,
             status="pending",
             type="deposit"
@@ -172,7 +217,13 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
     except Exception as e:
         db.rollback()
         logger.error(f"Erro no depósito: {str(e)}")
-        raise HTTPException(500, f"Erro interno no depósito: {str(e)}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": f"Erro interno no depósito: {str(e)}",
+            "back_url": "/deposit"
+        }, status_code=500)
 
 @app.get("/withdraw", response_class=HTMLResponse)
 def withdraw_form(request: Request, db: Session = Depends(get_db)):
@@ -309,7 +360,13 @@ def history(request: Request, db: Session = Depends(get_db)):
         })
     except Exception as e:
         logger.error(f"Erro no histórico: {str(e)}")
-        raise HTTPException(500, f"Erro interno no histórico: {str(e)}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": f"Erro interno no histórico: {str(e)}",
+            "back_url": "/dashboard"
+        }, status_code=500)
 
 @app.get("/settings", response_class=HTMLResponse)
 def settings_form(request: Request, db: Session = Depends(get_db)):
