@@ -3,91 +3,120 @@
 {% block title %}Dashboard - Revolution Pay{% endblock %}
 
 {% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card card-dashboard bg-primary text-white mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Saldo Disponível</h5>
+                <h2>R$ {{ "%.2f"|format(available) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-dashboard bg-success text-white mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Total de Vendas</h5>
+                <h2>R$ {{ "%.2f"|format(total_sales) }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-dashboard bg-warning text-white mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Total Retirado</h5>
+                <h2>R$ {{ "%.2f"|format(total_withdrawn) }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="row mt-4">
-    <div class="col-12">
-        <h1 class="mb-4">Olá, <span class="text-primary">{{ user_email }}</span>!</h1>
-    </div>
-</div>
-
-<div class="row g-4">
-    <div class="col-md-6">
-        <div class="card text-white bg-success">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="card-title">Saldo Disponível</h5>
-                        <h2 class="display-6">R$ {{ "%.2f"|format(available) }}</h2>
-                    </div>
-                    <i class="fas fa-wallet fa-3x"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card text-white bg-warning">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="card-title">Saldo Pendente</h5>
-                        <h2 class="display-6">R$ {{ "%.2f"|format(pending) }}</h2>
-                    </div>
-                    <i class="fas fa-hourglass-half fa-3x"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mt-5">
-    <div class="col-12">
+    <div class="col-md-12">
         <div class="card">
-            <div class="card-header bg-white">
-                <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Últimas transações</h5>
+            <div class="card-header">
+                <h5>Transações por Hora (últimas 24h)</h5>
             </div>
             <div class="card-body">
-                {% if recent_transactions %}
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Tipo</th>
-                                <th>Valor</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for t in recent_transactions %}
-                            <tr>
-                                <td>#{{ t.id }}</td>
-                                <td>
-                                    {% if t.type == 'deposit' %}
-                                        <span class="badge bg-info text-dark"><i class="fas fa-arrow-down"></i> Depósito</span>
-                                    {% else %}
-                                        <span class="badge bg-warning text-dark"><i class="fas fa-arrow-up"></i> Saque</span>
-                                    {% endif %}
-                                </td>
-                                <td>R$ {{ "%.2f"|format(t.amount) }}</td>
-                                <td>
-                                    {% if t.status == 'approved' %}
-                                        <span class="badge bg-success">Aprovado</span>
-                                    {% elif t.status == 'pending' %}
-                                        <span class="badge bg-warning text-dark">Pendente</span>
-                                    {% else %}
-                                        <span class="badge bg-danger">Rejeitado</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-muted">Nenhuma transação recente.</p>
-                {% endif %}
-                <a href="/history" class="btn btn-outline-primary btn-sm">Ver todas</a>
+                <canvas id="transactionsChart"></canvas>
             </div>
         </div>
     </div>
 </div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Últimas Transações</h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tipo</th>
+                            <th>Valor</th>
+                            <th>Status</th>
+                            <th>Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in recent_transactions %}
+                        <tr>
+                            <td>#{{ t.id }}</td>
+                            <td>
+                                {% if t.type == 'deposit' %}
+                                    <span class="badge bg-info"><i class="bi bi-arrow-down"></i> Depósito</span>
+                                {% elif t.type == 'withdraw' %}
+                                    <span class="badge bg-warning"><i class="bi bi-arrow-up"></i> Saque</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ t.type }}</span>
+                                {% endif %}
+                            </td>
+                            <td>R$ {{ "%.2f"|format(t.amount) }}</td>
+                            <td>
+                                {% if t.status == 'approved' %}
+                                    <span class="badge bg-success">Aprovado</span>
+                                {% elif t.status == 'pending' %}
+                                    <span class="badge bg-warning">Pendente</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Rejeitado</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ t.created_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Gráfico de transações por hora
+    const ctx = document.getElementById('transactionsChart').getContext('2d');
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: {{ hours|safe }},
+            datasets: [{
+                label: 'Quantidade de Transações',
+                data: {{ counts|safe }},
+                backgroundColor: 'rgba(0, 123, 255, 0.2)',
+                borderColor: 'rgba(0, 123, 255, 1)',
+                borderWidth: 2,
+                tension: 0.3
+            }]
+        },
+        options: {
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    precision: 0
+                }
+            }
+        }
+    });
+</script>
 {% endblock %}
