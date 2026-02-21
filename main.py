@@ -17,6 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 Base.metadata.create_all(bind=engine)
+
 with engine.connect() as conn:
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pix_key VARCHAR;"))
     conn.commit()
@@ -131,7 +132,6 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
     except:
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
-    # Simulação de QR Code
     pix_code = f"pix-{uuid.uuid4().hex[:10]}"
     qr = qrcode.make(pix_code)
     buffered = io.BytesIO()
