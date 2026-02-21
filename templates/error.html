@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Erro{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <i class="bi bi-exclamation-triangle"></i> Oops! Algo deu errado.
+            </div>
+            <div class="card-body">
+                <p class="fs-5">{{ error_message }}</p>
+                <a href="{{ back_url }}" class="btn btn-primary">Voltar</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
