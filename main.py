@@ -7,12 +7,7 @@ from database import SessionLocal, engine
 from models import Base, User, Transaction
 from auth import hash_password, verify_password, create_api_key, create_token, get_current_user
 import os
-import requests
-import base64
-import io
-import qrcode
 import uuid
-from datetime import datetime
 
 Base.metadata.create_all(bind=engine)
 with engine.connect() as conn:
@@ -22,10 +17,6 @@ with engine.connect() as conn:
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-api_base = os.getenv("API_BASE", "https://api.promisse.com.br/v1")
-api_key = os.getenv("PROMISSE_API_KEY")
-store_id = os.getenv("PROMISSE_STORE_ID")
-
 def get_db():
     db = SessionLocal()
     try:
@@ -33,11 +24,18 @@ def get_db():
     finally:
         db.close()
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def root(request: Request):
+    # Se já estiver logado, redireciona para dashboard
+    try:
+        user_id = get_current_user(request)
+        if user_id:
+            return RedirectResponse(url="/dashboard", status_code=302)
+    except:
+        pass
     return templates.TemplateResponse("login.html", {"request": request, "user_logged_in": False})
 
-@app.get("/register")
+@app.get("/register", response_class=HTMLResponse)
 def register_form(request: Request):
     return templates.TemplateResponse("register.html", {"request": request, "user_logged_in": False})
 
@@ -45,10 +43,25 @@ def register_form(request: Request):
 def register(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(400, "Email já existe")
-    user = User(email=email, password=hash_password(password), api_key=create_api_key())
-    db.add(user); db.commit(); db.refresh(user)
-    response = RedirectResponse("/dashboard", 302)
-    response.set_cookie("access_token", create_token({"sub": user.id}))
+    user = User(
+        email=email,
+        password=hash_password(password),
+        api_key=create_api_key()
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    token = create_token({"sub": user.id})
+    response = RedirectResponse(url="/dashboard", status_code=302)
+    # Configuração correta do cookie para produção
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,        # Impede acesso via JavaScript (mais seguro)
+        secure=True,          # Obrigatório em HTTPS (Render usa HTTPS)
+        samesite="lax",       # Permite envio em navegação entre páginas
+        max_age=3600 * 24 * 7 # 7 dias (opcional)
+    )
     return response
 
 @app.post("/login")
@@ -56,64 +69,90 @@ def login(email: str = Form(...), password: str = Form(...), db: Session = Depen
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.password):
         raise HTTPException(400, "Credenciais inválidas")
-    response = RedirectResponse("/dashboard", 302)
-    response.set_cookie("access_token", create_token({"sub": user.id}))
+    token = create_token({"sub": user.id})
+    response = RedirectResponse(url="/dashboard", status_code=302)
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=3600 * 24 * 7
+    )
     return response
 
-@app.get("/dashboard")
+@app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_db)):
     try:
         user_id = get_current_user(request)
-    except:
-        return RedirectResponse("/")
-    user = db.query(User).get(user_id)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
     return templates.TemplateResponse("dashboard.html", {
-        "request": request, "user_logged_in": True,
-        "user_email": user.email, "available": user.balance_available/100
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "available": user.balance_available / 100
     })
 
-@app.get("/deposit")
+@app.get("/deposit", response_class=HTMLResponse)
 def deposit_form(request: Request, db: Session = Depends(get_db)):
     try:
         user_id = get_current_user(request)
     except:
-        return RedirectResponse("/")
-    user = db.query(User).get(user_id)
-    return templates.TemplateResponse("deposit.html", {"request": request, "user_logged_in": True, "user_email": user.email})
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("deposit.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email
+    })
 
 @app.post("/deposit")
 def create_deposit(request: Request, amount: int = Form(...), db: Session = Depends(get_db)):
     try:
         user_id = get_current_user(request)
     except:
-        return RedirectResponse("/")
-    user = db.query(User).get(user_id)
-    # Simula integração com API (fallback)
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    # Simulação de geração de Pix
+    import qrcode, base64, io, uuid
     pix_code = f"pix-{uuid.uuid4().hex[:10]}"
     qr = qrcode.make(pix_code)
     buffered = io.BytesIO()
     qr.save(buffered, format="PNG")
     qr_base64 = base64.b64encode(buffered.getvalue()).decode()
-    trans = Transaction(user_id=user_id, transaction_id=pix_code, amount=amount, status="pending", type="deposit")
+    trans = Transaction(
+        user_id=user_id,
+        transaction_id=pix_code,
+        amount=amount,
+        status="pending",
+        type="deposit"
+    )
     db.add(trans)
     user.balance_pending += amount
     db.commit()
     return templates.TemplateResponse("deposit_confirm.html", {
-        "request": request, "user_logged_in": True,
-        "user_email": user.email, "qr_base64": qr_base64,
-        "pix_code": pix_code, "amount": amount/100
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "qr_base64": qr_base64,
+        "pix_code": pix_code,
+        "amount": amount / 100
     })
 
-@app.get("/withdraw")
+@app.get("/withdraw", response_class=HTMLResponse)
 def withdraw_form(request: Request, db: Session = Depends(get_db)):
     try:
         user_id = get_current_user(request)
     except:
-        return RedirectResponse("/")
-    user = db.query(User).get(user_id)
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
     return templates.TemplateResponse("withdraw.html", {
-        "request": request, "user_logged_in": True,
-        "user_email": user.email, "pix_key": user.pix_key
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "pix_key": user.pix_key
     })
 
 @app.post("/withdraw")
@@ -121,8 +160,8 @@ def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Fo
     try:
         user_id = get_current_user(request)
     except:
-        return RedirectResponse("/")
-    user = db.query(User).get(user_id)
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
     if user.balance_available < amount:
         raise HTTPException(400, "Saldo insuficiente")
     key = pix_key or user.pix_key
@@ -130,64 +169,90 @@ def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Fo
         raise HTTPException(400, "Chave Pix obrigatória")
     if pix_key:
         user.pix_key = pix_key
-    trans = Transaction(user_id=user_id, transaction_id=f"withdraw-{uuid.uuid4()}", amount=-amount, status="approved", type="withdraw")
+    trans = Transaction(
+        user_id=user_id,
+        transaction_id=f"withdraw-{uuid.uuid4()}",
+        amount=-amount,
+        status="approved",
+        type="withdraw"
+    )
     db.add(trans)
     user.balance_available -= amount
     db.commit()
     return RedirectResponse("/dashboard", 302)
 
-@app.get("/transfer")
+@app.get("/transfer", response_class=HTMLResponse)
 def transfer_form(request: Request, db: Session = Depends(get_db)):
     try:
         user_id = get_current_user(request)
     except:
-        return RedirectResponse("/")
-    user = db.query(User).get(user_id)
-    return templates.TemplateResponse("transfer.html", {"request": request, "user_logged_in": True, "user_email": user.email})
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("transfer.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email
+    })
 
 @app.post("/transfer")
 def create_transfer(request: Request, dest_email: str = Form(...), amount: int = Form(...), db: Session = Depends(get_db)):
     try:
         user_id = get_current_user(request)
     except:
-        return RedirectResponse("/")
-    user = db.query(User).get(user_id)
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
     if user.balance_available < amount:
         raise HTTPException(400, "Saldo insuficiente")
     dest = db.query(User).filter(User.email == dest_email).first()
     if not dest:
         raise HTTPException(400, "Destinatário não encontrado")
-    out = Transaction(user_id=user_id, transaction_id=f"out-{uuid.uuid4()}", amount=-amount, status="approved", type="transfer_out")
-    inc = Transaction(user_id=dest.id, transaction_id=f"in-{uuid.uuid4()}", amount=amount, status="approved", type="transfer_in")
+    out = Transaction(
+        user_id=user_id,
+        transaction_id=f"out-{uuid.uuid4()}",
+        amount=-amount,
+        status="approved",
+        type="transfer_out"
+    )
+    inc = Transaction(
+        user_id=dest.id,
+        transaction_id=f"in-{uuid.uuid4()}",
+        amount=amount,
+        status="approved",
+        type="transfer_in"
+    )
     user.balance_available -= amount
     dest.balance_available += amount
     db.add_all([out, inc])
     db.commit()
     return RedirectResponse("/dashboard", 302)
 
-@app.get("/history")
+@app.get("/history", response_class=HTMLResponse)
 def history(request: Request, db: Session = Depends(get_db)):
     try:
         user_id = get_current_user(request)
     except:
-        return RedirectResponse("/")
-    user = db.query(User).get(user_id)
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
     trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
     return templates.TemplateResponse("history.html", {
-        "request": request, "user_logged_in": True,
-        "user_email": user.email, "transactions": trans
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "transactions": trans
     })
 
-@app.get("/settings")
+@app.get("/settings", response_class=HTMLResponse)
 def settings_form(request: Request, db: Session = Depends(get_db)):
     try:
         user_id = get_current_user(request)
     except:
-        return RedirectResponse("/")
-    user = db.query(User).get(user_id)
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
     return templates.TemplateResponse("settings.html", {
-        "request": request, "user_logged_in": True,
-        "user_email": user.email, "user": user
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "user": user
     })
 
 @app.post("/settings")
@@ -195,8 +260,8 @@ def update_settings(request: Request, pix_key: str = Form(...), db: Session = De
     try:
         user_id = get_current_user(request)
     except:
-        return RedirectResponse("/")
-    user = db.query(User).get(user_id)
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
     user.pix_key = pix_key
     db.commit()
     return RedirectResponse("/settings", 302)
