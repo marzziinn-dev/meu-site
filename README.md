@@ -11,9 +11,8 @@ Um gateway de pagamentos simples integrado com PromissePay, usando FastAPI, SQLA
    - PROMISSE_STORE_ID=seu-store-id-do-dashboard
 
 2. Instale deps: pip install -r requirements.txt
-3. Instale deps: pip install python-multipart
-4. Rode local: uvicorn main:app --reload
-5. Deploy no Render.
+3. Rode local: uvicorn main:app --reload
+4. Deploy no Render.
 
 ## Features
 - Registro/Login
