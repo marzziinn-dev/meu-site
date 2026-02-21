@@ -70,11 +70,11 @@
                                 <td>R$ {{ "%.2f"|format(t.amount) }}</td>
                                 <td>
                                     {% if t.status == 'approved' %}
-                                        <span class="badge badge-status bg-success">Aprovado</span>
+                                        <span class="badge bg-success">Aprovado</span>
                                     {% elif t.status == 'pending' %}
-                                        <span class="badge badge-status bg-warning text-dark">Pendente</span>
+                                        <span class="badge bg-warning text-dark">Pendente</span>
                                     {% else %}
-                                        <span class="badge badge-status bg-danger">Rejeitado</span>
+                                        <span class="badge bg-danger">Rejeitado</span>
                                     {% endif %}
                                 </td>
                             </tr>
