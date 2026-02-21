@@ -1,21 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Histórico{% endblock %}
 {% block content %}
-<h2>Histórico de transações</h2>
-<table class="table">
-    <thead>
-        <tr><th>ID</th><th>Tipo</th><th>Valor</th><th>Status</th><th>Data</th></tr>
-    </thead>
-    <tbody>
-        {% for t in transactions %}
-        <tr>
-            <td>{{ t.id }}</td>
-            <td>{{ t.type }}</td>
-            <td>R$ {{ "%.2f"|format(t.amount|abs) }}</td>
-            <td>{{ t.status }}</td>
-            <td>{{ t.created_at }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<ul>
+    {% for t in transactions %}
+        <li>{{ t.type }} - R$ {{ "%.2f"|format(t.amount/100) }} - {{ t.status }} - {{ t.created_at }}</li>
+    {% endfor %}
+</ul>
 {% endblock %}
