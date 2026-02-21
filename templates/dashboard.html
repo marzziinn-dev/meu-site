@@ -1,47 +1,9 @@
-
 {% extends "base.html" %}
-
-{% block title %}Bem-vindo - Revolution Pay{% endblock %}
-
+{% block title %}Bem-vindo{% endblock %}
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-8">
-        <div class="card text-center p-5">
-            <i class="bi bi-bolt" style="font-size: 4rem; color: #007bff;"></i>
-            <h1 class="mt-3">Bem-vindo ao Revolution Pay!</h1>
-            <p class="lead">Olá, {{ user_email }}! Seu saldo atual é <strong>R$ {{ "%.2f"|format(available) }}</strong></p>
-            <p>Clique no ícone <i class="bi bi-list"></i> no canto superior esquerdo para acessar o menu.</p>
-            <hr>
-            <div class="row mt-4">
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title"><i class="bi bi-qr-code text-primary"></i> Depositar</h5>
-                            <p>Adicione fundos via Pix</p>
-                            <a href="/deposit" class="btn btn-primary">Depositar</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title"><i class="bi bi-cash text-success"></i> Sacar</h5>
-                            <p>Transfira para sua conta</p>
-                            <a href="/withdraw" class="btn btn-success">Sacar</a>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class="card-title"><i class="bi bi-clock-history text-info"></i> Histórico</h5>
-                            <p>Veja suas transações</p>
-                            <a href="/history" class="btn btn-info">Histórico</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="text-center mt-5">
+    <h1>Bem-vindo, {{ user_email }}!</h1>
+    <p class="lead">Seu saldo disponível: <strong>R$ {{ "%.2f"|format(available) }}</strong></p>
+    <p>Use o menu ☰ para navegar.</p>
 </div>
 {% endblock %}
