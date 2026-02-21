@@ -6,5 +6,4 @@ python-jose
 passlib[bcrypt]
 requests
 python-dotenv
-stripe
 qrcode[pil]  # Para gerar QR localmente, se precisar (mas Stripe fornece URL de imagem)
