@@ -18,7 +18,6 @@ from fastapi.exceptions import HTTPException as FastAPIHTTPException
 Base.metadata.create_all(bind=engine)
 
 # ===== CORREÇÃO AUTOMÁTICA DA COLUNA PIX_KEY =====
-# Executa uma vez na inicialização para garantir que a coluna exista
 with engine.connect() as conn:
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pix_key VARCHAR;"))
     conn.commit()
@@ -28,7 +27,7 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 api_base = os.getenv("API_BASE", "https://api.promisse.com.br/v1")
-api_key = os.getenv("PROMISSE_API_KEY")  # Verifique se no Render é PROMISSE_API_KEY ou PROMISE_API_KEY
+api_key = os.getenv("PROMISSE_API_KEY")
 store_id = os.getenv("PROMISSE_STORE_ID")
 
 def get_db():
@@ -55,13 +54,16 @@ def register_form(request: Request):
 @app.post("/register")
 def register(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     try:
-        # Verifica se a senha excede 72 bytes (limite do bcrypt)
-        if len(password.encode('utf-8')) > 72:
-            raise HTTPException(400, "Senha muito longa. O máximo permitido é 72 caracteres.")
-        
+        # Verifica se email já existe
         existing = db.query(User).filter(User.email == email).first()
         if existing:
             raise HTTPException(400, "Email já existe")
+        
+        # Trunca a senha se for muito longa para o bcrypt (máx 72 bytes)
+        password_bytes = password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password = password[:60]  # trunca para 60 chars (seguro)
+        
         user = User(
             email=email,
             password=hash_password(password),
@@ -70,6 +72,7 @@ def register(email: str = Form(...), password: str = Form(...), db: Session = De
         db.add(user)
         db.commit()
         db.refresh(user)
+        
         token = create_token({"sub": user.id})
         response = RedirectResponse(url="/dashboard", status_code=302)
         response.set_cookie(key="access_token", value=token)
