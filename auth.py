@@ -8,7 +8,6 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 
 def hash_password(password):
-    # Converte para bytes e trunca para 72 bytes se necessário
     if isinstance(password, str):
         password_bytes = password.encode('utf-8')
     else:
