@@ -158,18 +158,39 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "webhookUrl": "https://revolution-pay.onrender.com/webhook",
         }
 
+        # Verifica se a API key está presente
+        if not api_key:
+            return templates.TemplateResponse("error.html", {
+                "request": request,
+                "user_logged_in": True,
+                "user_email": user.email,
+                "error_message": "Chave da API Promisse não configurada.",
+                "back_url": "/deposit"
+            }, status_code=500)
+
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
 
         logger.info(f"Enviando requisição para {api_base}/transactions")
-        response = requests.post(f"{api_base}/transactions", json=payload, headers=headers)
+        logger.info(f"Payload: {json.dumps(payload)}")
+        logger.info(f"Headers: Authorization: Bearer {api_key[:5]}... (oculto)")
+
+        response = requests.post(f"{api_base}/transactions", json=payload, headers=headers, timeout=30)
         
         # Log detalhado da resposta
         logger.info(f"Status code: {response.status_code}")
         logger.info(f"Resposta bruta: {response.text}")
         
+        # Se a resposta não for JSON, tenta mostrar o texto
+        try:
+            data = response.json()
+            logger.info(f"Resposta JSON: {json.dumps(data, indent=2)}")
+        except:
+            data = {"raw": response.text}
+            logger.error(f"Resposta não é JSON: {response.text}")
+
         if response.status_code not in (200, 201):
             error_msg = f"Erro na API Promisse: {response.status_code} - {response.text}"
             logger.error(error_msg)
@@ -181,12 +202,9 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
                 "back_url": "/deposit"
             }, status_code=400)
 
-        data = response.json()
-        logger.info(f"Resposta JSON: {json.dumps(data, indent=2)}")
-
         # Tentativa de extrair o código Pix de vários campos possíveis
         pix_code = None
-        possible_fields = ["brcode", "pix_code", "qr_code", "end_to_end", "pixCopiaECola", "pix", "code"]
+        possible_fields = ["brcode", "pix_code", "qr_code", "end_to_end", "pixCopiaECola", "pix", "code", "copiaecola"]
         for field in possible_fields:
             if field in data:
                 pix_code = data[field]
@@ -203,7 +221,9 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
                     break
         
         if not pix_code:
-            error_msg = "Código Pix não encontrado na resposta da API. Campos disponíveis: " + ", ".join(data.keys())
+            # Se ainda não encontrou, lista os campos disponíveis
+            campos = list(data.keys())
+            error_msg = f"Código Pix não encontrado. Campos disponíveis: {campos}"
             logger.error(error_msg)
             return templates.TemplateResponse("error.html", {
                 "request": request,
@@ -239,6 +259,15 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "pix_code": pix_code,
             "amount": amount / 100
         })
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Erro de conexão com a API: {str(e)}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": f"Erro de conexão com a API: {str(e)}",
+            "back_url": "/deposit"
+        }, status_code=500)
     except Exception as e:
         db.rollback()
         logger.error(f"Erro no depósito: {str(e)}", exc_info=True)
