@@ -7,15 +7,39 @@ from database import SessionLocal, engine
 from models import Base, User, Transaction
 from auth import hash_password, verify_password, create_api_key, create_token, get_current_user
 import os
+import logging
 import uuid
+import qrcode
+import base64
+import io
 
+# Configuração de logging (vai aparecer nos logs do Render)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Cria tabelas se não existirem
 Base.metadata.create_all(bind=engine)
-with engine.connect() as conn:
-    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pix_key VARCHAR;"))
-    conn.commit()
+
+# Garante a coluna pix_key
+try:
+    with engine.connect() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pix_key VARCHAR;"))
+        conn.commit()
+except Exception as e:
+    logger.error(f"Erro ao adicionar coluna pix_key: {e}")
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
+
+# Variáveis de ambiente
+SECRET_KEY = os.getenv("SECRET_KEY")
+DATABASE_URL = os.getenv("DATABASE_URL")
+PROMISSE_API_KEY = os.getenv("PROMISSE_API_KEY")
+PROMISSE_STORE_ID = os.getenv("PROMISSE_STORE_ID")
+
+# Log para verificar se as variáveis estão sendo carregadas
+logger.info(f"SECRET_KEY: {'definida' if SECRET_KEY else 'NÃO DEFINIDA'}")
+logger.info(f"DATABASE_URL: {'definida' if DATABASE_URL else 'NÃO DEFINIDA'}")
 
 def get_db():
     db = SessionLocal()
@@ -26,7 +50,7 @@ def get_db():
 
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
-    # Se já estiver logado, redireciona para dashboard
+    # Se já estiver logado, vai para dashboard
     try:
         user_id = get_current_user(request)
         if user_id:
@@ -41,53 +65,91 @@ def register_form(request: Request):
 
 @app.post("/register")
 def register(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == email).first():
-        raise HTTPException(400, "Email já existe")
-    user = User(
-        email=email,
-        password=hash_password(password),
-        api_key=create_api_key()
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    token = create_token({"sub": user.id})
-    response = RedirectResponse(url="/dashboard", status_code=302)
-    # Configuração correta do cookie para produção
-    response.set_cookie(
-        key="access_token",
-        value=token,
-        httponly=True,        # Impede acesso via JavaScript (mais seguro)
-        secure=True,          # Obrigatório em HTTPS (Render usa HTTPS)
-        samesite="lax",       # Permite envio em navegação entre páginas
-        max_age=3600 * 24 * 7 # 7 dias (opcional)
-    )
-    return response
+    logger.info(f"Tentativa de registro: {email}")
+    try:
+        # Verifica se email já existe
+        existing = db.query(User).filter(User.email == email).first()
+        if existing:
+            logger.warning(f"Email já existe: {email}")
+            raise HTTPException(400, "Email já existe")
+        
+        # Cria usuário
+        user = User(
+            email=email,
+            password=hash_password(password),
+            api_key=create_api_key()
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        logger.info(f"Usuário criado: {user.id} - {email}")
+
+        # Gera token
+        token = create_token({"sub": user.id})
+        
+        # Cria resposta com redirecionamento e cookie seguro
+        response = RedirectResponse(url="/dashboard", status_code=302)
+        response.set_cookie(
+            key="access_token",
+            value=token,
+            httponly=True,
+            secure=True,      # Requer HTTPS (Render usa)
+            samesite="lax",
+            max_age=3600 * 24 * 7  # 7 dias
+        )
+        logger.info(f"Cookie definido para usuário {user.id}")
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro inesperado no registro: {str(e)}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
 
 @app.post("/login")
 def login(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == email).first()
-    if not user or not verify_password(password, user.password):
-        raise HTTPException(400, "Credenciais inválidas")
-    token = create_token({"sub": user.id})
-    response = RedirectResponse(url="/dashboard", status_code=302)
-    response.set_cookie(
-        key="access_token",
-        value=token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=3600 * 24 * 7
-    )
-    return response
+    logger.info(f"Tentativa de login: {email}")
+    try:
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            logger.warning(f"Usuário não encontrado: {email}")
+            raise HTTPException(400, "Credenciais inválidas")
+        
+        if not verify_password(password, user.password):
+            logger.warning(f"Senha inválida para: {email}")
+            raise HTTPException(400, "Credenciais inválidas")
+        
+        logger.info(f"Login bem-sucedido: {user.id} - {email}")
+        token = create_token({"sub": user.id})
+        response = RedirectResponse(url="/dashboard", status_code=302)
+        response.set_cookie(
+            key="access_token",
+            value=token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=3600 * 24 * 7
+        )
+        return response
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro inesperado no login: {str(e)}")
+        raise HTTPException(500, f"Erro interno: {str(e)}")
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_db)):
     try:
         user_id = get_current_user(request)
-    except HTTPException:
+        logger.info(f"Acesso ao dashboard: user_id {user_id}")
+    except HTTPException as e:
+        logger.warning(f"Falha na autenticação para dashboard: {e.detail}")
         return RedirectResponse(url="/")
+    
     user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        logger.error(f"Usuário {user_id} não encontrado no banco")
+        return RedirectResponse(url="/")
+    
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "user_logged_in": True,
@@ -115,13 +177,14 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
     except:
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
-    # Simulação de geração de Pix
-    import qrcode, base64, io, uuid
+    
+    # Simulação de geração de QR Code (para teste)
     pix_code = f"pix-{uuid.uuid4().hex[:10]}"
     qr = qrcode.make(pix_code)
     buffered = io.BytesIO()
     qr.save(buffered, format="PNG")
     qr_base64 = base64.b64encode(buffered.getvalue()).decode()
+    
     trans = Transaction(
         user_id=user_id,
         transaction_id=pix_code,
@@ -132,6 +195,7 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
     db.add(trans)
     user.balance_pending += amount
     db.commit()
+    
     return templates.TemplateResponse("deposit_confirm.html", {
         "request": request,
         "user_logged_in": True,
@@ -166,7 +230,7 @@ def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Fo
         raise HTTPException(400, "Saldo insuficiente")
     key = pix_key or user.pix_key
     if not key:
-        raise HTTPException(400, "Chave Pix obrigatória")
+        raise HTTPException(400, "Informe chave Pix")
     if pix_key:
         user.pix_key = pix_key
     trans = Transaction(
