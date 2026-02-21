@@ -1,20 +1,9 @@
 {% extends "base.html" %}
 {% block title %}Depósito{% endblock %}
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">Solicitar depósito via Pix</div>
-            <div class="card-body">
-                <form method="post" action="/deposit">
-                    <div class="mb-3">
-                        <label>Valor (em centavos)</label>
-                        <input type="number" name="amount" class="form-control" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Gerar QR Code</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
+<form method="post" action="/deposit">
+    <label>Valor (em centavos):</label>
+    <input type="number" name="amount" required>
+    <button type="submit">Gerar QR Code</button>
+</form>
 {% endblock %}
