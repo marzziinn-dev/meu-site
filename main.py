@@ -13,6 +13,7 @@ import qrcode
 import base64
 import io
 import requests
+import json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -150,17 +151,11 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
     user = db.query(User).filter(User.id == user_id).first()
     try:
         # --- INTEGRAÇÃO COM A API DA PROMISSE ---
-        # Converte centavos para reais (a API da Promisse trabalha com reais)
         amount_real = amount / 100
         payload = {
             "amount": amount_real,
             "storeId": store_id,
-            "webhookUrl": "https://revolution-pay.onrender.com/webhook",  # Seu webhook
-            # Opcional: dados do pagador (se necessário)
-            # "payer": {
-            #     "name": user.email.split('@')[0],
-            #     "email": user.email
-            # }
+            "webhookUrl": "https://revolution-pay.onrender.com/webhook",
         }
 
         headers = {
@@ -168,25 +163,55 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "Content-Type": "application/json"
         }
 
-        # Faz a requisição para criar a transação Pix
+        logger.info(f"Enviando requisição para {api_base}/transactions")
         response = requests.post(f"{api_base}/transactions", json=payload, headers=headers)
+        
+        # Log detalhado da resposta
+        logger.info(f"Status code: {response.status_code}")
+        logger.info(f"Resposta bruta: {response.text}")
+        
         if response.status_code not in (200, 201):
-            logger.error(f"Erro na API Promisse: {response.text}")
+            error_msg = f"Erro na API Promisse: {response.status_code} - {response.text}"
+            logger.error(error_msg)
             return templates.TemplateResponse("error.html", {
                 "request": request,
                 "user_logged_in": True,
                 "user_email": user.email,
-                "error_message": f"Erro na API de pagamento: {response.status_code}",
+                "error_message": error_msg,
                 "back_url": "/deposit"
             }, status_code=400)
 
         data = response.json()
-        logger.info(f"Resposta da API: {data}")
+        logger.info(f"Resposta JSON: {json.dumps(data, indent=2)}")
 
-        # Extrai o código Pix do retorno (campo pode variar; testei com brcode, pix_code, qr_code)
-        pix_code = data.get("brcode") or data.get("pix_code") or data.get("qr_code") or data.get("end_to_end")
+        # Tentativa de extrair o código Pix de vários campos possíveis
+        pix_code = None
+        possible_fields = ["brcode", "pix_code", "qr_code", "end_to_end", "pixCopiaECola", "pix", "code"]
+        for field in possible_fields:
+            if field in data:
+                pix_code = data[field]
+                logger.info(f"Código Pix encontrado no campo '{field}': {pix_code[:50]}...")
+                break
+        
+        # Se não achou, tenta procurar em objetos aninhados
+        if not pix_code and "pix" in data and isinstance(data["pix"], dict):
+            pix_data = data["pix"]
+            for field in possible_fields:
+                if field in pix_data:
+                    pix_code = pix_data[field]
+                    logger.info(f"Código Pix encontrado em data['pix']['{field}']")
+                    break
+        
         if not pix_code:
-            raise HTTPException(500, "Código Pix não encontrado na resposta da API")
+            error_msg = "Código Pix não encontrado na resposta da API. Campos disponíveis: " + ", ".join(data.keys())
+            logger.error(error_msg)
+            return templates.TemplateResponse("error.html", {
+                "request": request,
+                "user_logged_in": True,
+                "user_email": user.email,
+                "error_message": error_msg,
+                "back_url": "/deposit"
+            }, status_code=500)
 
         # Gera o QR code a partir do código Pix
         qr = qrcode.make(pix_code)
@@ -197,7 +222,7 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         # Salva a transação no banco
         trans = Transaction(
             user_id=user_id,
-            transaction_id=data.get("id", pix_code[:20]),  # Usa o ID da transação retornado
+            transaction_id=data.get("id", str(uuid.uuid4())),
             amount=amount,
             status="pending",
             type="deposit"
@@ -216,7 +241,7 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         })
     except Exception as e:
         db.rollback()
-        logger.error(f"Erro no depósito: {str(e)}")
+        logger.error(f"Erro no depósito: {str(e)}", exc_info=True)
         return templates.TemplateResponse("error.html", {
             "request": request,
             "user_logged_in": True,
@@ -359,7 +384,7 @@ def history(request: Request, db: Session = Depends(get_db)):
             "transactions": transactions
         })
     except Exception as e:
-        logger.error(f"Erro no histórico: {str(e)}")
+        logger.error(f"Erro no histórico: {str(e)}", exc_info=True)
         return templates.TemplateResponse("error.html", {
             "request": request,
             "user_logged_in": True,
