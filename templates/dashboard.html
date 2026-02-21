@@ -1,125 +1,47 @@
+
 {% extends "base.html" %}
 
-{% block title %}Dashboard - Revolution Pay{% endblock %}
+{% block title %}Bem-vindo - Revolution Pay{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-4">
-        <div class="card card-dashboard bg-primary text-white mb-3">
-            <div class="card-body">
-                <h5 class="card-title">Saldo Disponível</h5>
-                <h2>R$ {{ "%.2f"|format(available) }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card card-dashboard bg-success text-white mb-3">
-            <div class="card-body">
-                <h5 class="card-title">Total de Vendas</h5>
-                <h2>R$ {{ "%.2f"|format(total_sales) }}</h2>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card card-dashboard bg-warning text-white mb-3">
-            <div class="card-body">
-                <h5 class="card-title">Total Retirado</h5>
-                <h2>R$ {{ "%.2f"|format(total_withdrawn) }}</h2>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mt-4">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-header">
-                <h5>Transações por Hora (últimas 24h)</h5>
-            </div>
-            <div class="card-body">
-                <canvas id="transactionsChart"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row mt-4">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-header">
-                <h5>Últimas Transações</h5>
-            </div>
-            <div class="card-body">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Tipo</th>
-                            <th>Valor</th>
-                            <th>Status</th>
-                            <th>Data</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for t in recent_transactions %}
-                        <tr>
-                            <td>#{{ t.id }}</td>
-                            <td>
-                                {% if t.type == 'deposit' %}
-                                    <span class="badge bg-info"><i class="bi bi-arrow-down"></i> Depósito</span>
-                                {% elif t.type == 'withdraw' %}
-                                    <span class="badge bg-warning"><i class="bi bi-arrow-up"></i> Saque</span>
-                                {% elif t.type == 'transfer_in' %}
-                                    <span class="badge bg-success"><i class="bi bi-arrow-left"></i> Transferência Recebida</span>
-                                {% elif t.type == 'transfer_out' %}
-                                    <span class="badge bg-secondary"><i class="bi bi-arrow-right"></i> Transferência Enviada</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{{ t.type }}</span>
-                                {% endif %}
-                            </td>
-                            <td>R$ {{ "%.2f"|format(t.amount|abs) }}</td>
-                            <td>
-                                {% if t.status == 'approved' %}
-                                    <span class="badge bg-success">Aprovado</span>
-                                {% elif t.status == 'pending' %}
-                                    <span class="badge bg-warning">Pendente</span>
-                                {% else %}
-                                    <span class="badge bg-danger">Rejeitado</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ t.created_at }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+<div class="row justify-content-center mt-5">
+    <div class="col-md-8">
+        <div class="card text-center p-5">
+            <i class="bi bi-bolt" style="font-size: 4rem; color: #007bff;"></i>
+            <h1 class="mt-3">Bem-vindo ao Revolution Pay!</h1>
+            <p class="lead">Olá, {{ user_email }}! Seu saldo atual é <strong>R$ {{ "%.2f"|format(available) }}</strong></p>
+            <p>Clique no ícone <i class="bi bi-list"></i> no canto superior esquerdo para acessar o menu.</p>
+            <hr>
+            <div class="row mt-4">
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="bi bi-qr-code text-primary"></i> Depositar</h5>
+                            <p>Adicione fundos via Pix</p>
+                            <a href="/deposit" class="btn btn-primary">Depositar</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="bi bi-cash text-success"></i> Sacar</h5>
+                            <p>Transfira para sua conta</p>
+                            <a href="/withdraw" class="btn btn-success">Sacar</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="bi bi-clock-history text-info"></i> Histórico</h5>
+                            <p>Veja suas transações</p>
+                            <a href="/history" class="btn btn-info">Histórico</a>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
-
-<script>
-    const ctx = document.getElementById('transactionsChart').getContext('2d');
-    const chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: {{ hours|safe }},
-            datasets: [{
-                label: 'Quantidade de Transações',
-                data: {{ counts|safe }},
-                backgroundColor: 'rgba(0, 123, 255, 0.2)',
-                borderColor: 'rgba(0, 123, 255, 1)',
-                borderWidth: 2,
-                tension: 0.3
-            }]
-        },
-        options: {
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    precision: 0
-                }
-            }
-        }
-    });
-</script>
 {% endblock %}
