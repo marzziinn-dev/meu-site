@@ -1,8 +1,23 @@
 {% extends "base.html" %}
 {% block title %}Confirmar Depósito{% endblock %}
 {% block content %}
-<h3>Pague R$ {{ "%.2f"|format(amount) }}</h3>
-<img src="data:image/png;base64,{{ qr_base64 }}" style="max-width: 200px;">
-<p>Código Pix: {{ pix_code }}</p>
-<a href="/dashboard">Voltar</a>
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card text-center">
+            <div class="card-header">Pague o depósito</div>
+            <div class="card-body">
+                <h5>Valor: R$ {{ "%.2f"|format(amount) }}</h5>
+                <img src="data:image/png;base64,{{ qr_base64 }}" class="img-fluid mb-3" style="max-width: 200px;">
+                <div class="mb-3">
+                    <label class="form-label">Código Pix</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" value="{{ pix_code }}" id="pixCode" readonly>
+                        <button class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('pixCode').value); alert('Copiado!')">Copiar</button>
+                    </div>
+                </div>
+                <a href="/dashboard" class="btn btn-primary">Voltar</a>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
