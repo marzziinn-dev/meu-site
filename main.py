@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from models import Base, User, Transaction
-from auth import hash_password, verify_password, create_api_key, create_token, get_current_user
+from auth import hash_password, verify_password, create_api_key, create_token, get_current_user_dep
 import os
 import requests
 import base64
