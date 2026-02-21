@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, func
 from database import SessionLocal, engine
 from models import Base, User, Transaction
 from auth import hash_password, verify_password, create_api_key, create_token, get_current_user
@@ -11,17 +11,16 @@ import requests
 import base64
 import io
 import qrcode
+import uuid
+from datetime import datetime, timedelta
 from fastapi import status
 from fastapi.exceptions import HTTPException as FastAPIHTTPException
 
-# Cria as tabelas se não existirem
 Base.metadata.create_all(bind=engine)
 
-# ===== CORREÇÃO AUTOMÁTICA DA COLUNA PIX_KEY =====
 with engine.connect() as conn:
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pix_key VARCHAR;"))
     conn.commit()
-# =================================================
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -54,29 +53,17 @@ def register_form(request: Request):
 @app.post("/register")
 def register(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     try:
-        print(f"Tentando registrar: {email}")
-        print(f"Senha recebida: {password}")
-        print(f"Tamanho da senha: {len(password)} caracteres")
-        print(f"Tamanho em bytes: {len(password.encode('utf-8'))}")
-
         existing = db.query(User).filter(User.email == email).first()
         if existing:
-            print("Email já existe")
             raise HTTPException(400, "Email já existe")
-        
-        hashed = hash_password(password)
-        print(f"Hash gerado: {hashed[:50]}...")
-
         user = User(
             email=email,
-            password=hashed,
+            password=hash_password(password),
             api_key=create_api_key()
         )
         db.add(user)
         db.commit()
         db.refresh(user)
-        print(f"Usuário criado com ID: {user.id}")
-
         token = create_token({"sub": user.id})
         response = RedirectResponse(url="/dashboard", status_code=302)
         response.set_cookie(key="access_token", value=token)
@@ -84,33 +71,19 @@ def register(email: str = Form(...), password: str = Form(...), db: Session = De
     except HTTPException:
         raise
     except Exception as e:
-        print(f"ERRO NO REGISTRO: {str(e)}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(500, f"Erro interno: {str(e)}")
 
 @app.post("/login")
 def login(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     try:
-        print(f"Tentando login: {email}")
         user = db.query(User).filter(User.email == email).first()
-        if not user:
-            print("Usuário não encontrado")
+        if not user or not verify_password(password, user.password):
             raise HTTPException(400, "Credenciais inválidas")
-        
-        if not verify_password(password, user.password):
-            print("Senha inválida")
-            raise HTTPException(400, "Credenciais inválidas")
-        
-        print(f"Login OK para user {user.id}")
         token = create_token({"sub": user.id})
         response = RedirectResponse(url="/dashboard", status_code=302)
         response.set_cookie(key="access_token", value=token)
         return response
     except Exception as e:
-        print(f"ERRO NO LOGIN: {str(e)}")
-        import traceback
-        traceback.print_exc()
         raise HTTPException(500, f"Erro interno: {str(e)}")
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -120,16 +93,62 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     except HTTPException:
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
-    recent_transactions = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).limit(5).all()
+
+    total_sales = db.query(func.sum(Transaction.amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'deposit',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+
+    total_withdrawn = db.query(func.sum(Transaction.amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'withdraw',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+
+    last_24h = datetime.now() - timedelta(hours=24)
+    hourly_data = db.query(
+        func.extract('hour', Transaction.created_at).label('hour'),
+        func.count(Transaction.id).label('count')
+    ).filter(
+        Transaction.user_id == user_id,
+        Transaction.created_at >= last_24h
+    ).group_by('hour').order_by('hour').all()
+
+    hours = [int(h[0]) for h in hourly_data]
+    counts = [h[1] for h in hourly_data]
+    all_hours = list(range(24))
+    full_counts = []
+    for h in all_hours:
+        if h in hours:
+            idx = hours.index(h)
+            full_counts.append(counts[idx])
+        else:
+            full_counts.append(0)
+
+    recent = db.query(Transaction).filter(
+        Transaction.user_id == user_id
+    ).order_by(Transaction.id.desc()).limit(10).all()
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "user_logged_in": True,
         "user_email": user.email,
         "available": user.balance_available / 100,
         "pending": user.balance_pending / 100,
+        "total_sales": abs(total_sales) / 100,
+        "total_withdrawn": abs(total_withdrawn) / 100,
+        "hours": all_hours,
+        "counts": full_counts,
         "recent_transactions": [
-            {"id": t.id, "amount": t.amount / 100, "status": t.status, "type": t.type}
-            for t in recent_transactions
+            {
+                "id": t.id,
+                "amount": t.amount / 100,
+                "status": t.status,
+                "type": t.type,
+                "created_at": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else ""
+            }
+            for t in recent
         ]
     })
 
@@ -203,7 +222,6 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         })
     except Exception as e:
         db.rollback()
-        print(f"ERRO NO DEPÓSITO: {str(e)}")
         raise HTTPException(500, str(e))
 
 @app.post("/webhook")
@@ -285,8 +303,53 @@ def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Fo
         return RedirectResponse("/dashboard", status_code=302)
     except Exception as e:
         db.rollback()
-        print(f"ERRO NO SAQUE: {str(e)}")
         raise HTTPException(500, str(e))
+
+@app.get("/transfer", response_class=HTMLResponse)
+def transfer_form(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("transfer.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email
+    })
+
+@app.post("/transfer")
+def create_transfer(request: Request, dest_email: str = Form(...), amount: int = Form(...), db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    if user.balance_available < amount:
+        raise HTTPException(400, "Saldo insuficiente")
+    dest_user = db.query(User).filter(User.email == dest_email).first()
+    if not dest_user:
+        raise HTTPException(400, "Destinatário não encontrado")
+    trans_out = Transaction(
+        user_id=user_id,
+        transaction_id=f"transfer_out_{uuid.uuid4()}",
+        amount=-amount,
+        status="approved",
+        type="transfer_out"
+    )
+    trans_in = Transaction(
+        user_id=dest_user.id,
+        transaction_id=f"transfer_in_{uuid.uuid4()}",
+        amount=amount,
+        status="approved",
+        type="transfer_in"
+    )
+    user.balance_available -= amount
+    dest_user.balance_available += amount
+    db.add(trans_out)
+    db.add(trans_in)
+    db.commit()
+    return RedirectResponse("/dashboard", status_code=302)
 
 @app.get("/history", response_class=HTMLResponse)
 def history(request: Request, db: Session = Depends(get_db)):
@@ -300,8 +363,42 @@ def history(request: Request, db: Session = Depends(get_db)):
         "request": request,
         "user_logged_in": True,
         "user_email": user.email,
-        "transactions": [{"id": t.id, "amount": t.amount / 100, "status": t.status, "type": t.type} for t in trans]
+        "transactions": [
+            {
+                "id": t.id,
+                "amount": t.amount / 100,
+                "status": t.status,
+                "type": t.type,
+                "created_at": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else ""
+            }
+            for t in trans
+        ]
     })
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_form(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("settings.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "user": user
+    })
+
+@app.post("/settings")
+def update_settings(request: Request, pix_key: str = Form(...), db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except HTTPException:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    user.pix_key = pix_key
+    db.commit()
+    return RedirectResponse("/settings", status_code=302)
 
 @app.get("/logout")
 def logout():
