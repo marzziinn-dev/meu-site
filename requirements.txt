@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-pip install python-multipart
+python-multipart
 sqlalchemy
 psycopg2-binary
 python-jose
