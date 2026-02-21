@@ -1,102 +1,49 @@
-from flask import Flask
+from flask import Flask, request, jsonify
+import requests
+import os
 
 app = Flask(__name__)
 
+PROMISE_API_KEY = os.getenv("PROMISE_API_KEY")
+
 @app.route("/")
 def home():
-    return """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Revolution Pay</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-            body {
-                margin: 0;
-                font-family: Arial, sans-serif;
-                background: linear-gradient(135deg, #0f0f0f, #1a1a1a);
-                color: white;
-                text-align: center;
-            }
+    return "Revolution Pay API Online 🚀"
 
-            .container {
-                padding: 20px;
-            }
 
-            .logo {
-                font-size: 28px;
-                font-weight: bold;
-                color: #ff1a1a;
-                margin-bottom: 20px;
-            }
+# 🔹 Criar cobrança
+@app.route("/create-charge", methods=["POST"])
+def create_charge():
+    data = request.json
+    amount = data.get("amount")
 
-            .card {
-                background: #1e1e1e;
-                padding: 20px;
-                border-radius: 15px;
-                margin-bottom: 20px;
-                box-shadow: 0 0 20px rgba(255,0,0,0.2);
-            }
+    url = "https://api.promise.com/v1/charges"
 
-            .saldo {
-                font-size: 24px;
-                margin: 10px 0;
-            }
+    headers = {
+        "Authorization": f"Bearer {PROMISE_API_KEY}",
+        "Content-Type": "application/json"
+    }
 
-            input {
-                width: 80%;
-                padding: 10px;
-                margin: 10px 0;
-                border-radius: 8px;
-                border: none;
-                outline: none;
-            }
+    payload = {
+        "amount": amount,
+        "payment_method": "pix"
+    }
 
-            button {
-                width: 85%;
-                padding: 12px;
-                margin-top: 10px;
-                border: none;
-                border-radius: 8px;
-                background: #ff1a1a;
-                color: white;
-                font-weight: bold;
-                font-size: 16px;
-                cursor: pointer;
-            }
+    response = requests.post(url, json=payload, headers=headers)
 
-            button:hover {
-                background: #cc0000;
-            }
-        </style>
-    </head>
-    <body>
+    return jsonify(response.json())
 
-        <div class="container">
-            <div class="logo">Revolution Pay</div>
 
-            <div class="card">
-                <div>Saldo disponível</div>
-                <div class="saldo">R$ 0,00</div>
-            </div>
+# 🔹 Webhook da Promise
+@app.route("/webhook/promise", methods=["POST"])
+def webhook():
+    data = request.json
+    print("Webhook recebido:", data)
 
-            <div class="card">
-                <h3>Depositar</h3>
-                <input type="number" placeholder="Digite o valor">
-                <button>Gerar PIX</button>
-            </div>
+    # Aqui você depois vai atualizar banco
 
-            <div class="card">
-                <h3>Solicitar Saque</h3>
-                <input type="number" placeholder="Digite o valor">
-                <button>Solicitar</button>
-            </div>
+    return "ok", 200
 
-        </div>
 
-    </body>
-    </html>
-    """
-    
 if __name__ == "__main__":
     app.run()
