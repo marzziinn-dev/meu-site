@@ -6,4 +6,6 @@ python-jose
 passlib[bcrypt]
 requests
 python-dotenv
-qrcode[pil]  # Para gerar QR localmente, se precisar (mas Stripe fornece URL de imagem)
+jinja2
+qrcode[pil]  # Para gerar QR
+gunicorn  # Para deploy
