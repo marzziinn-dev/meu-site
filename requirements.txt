@@ -7,6 +7,5 @@ passlib[bcrypt]
 requests
 python-dotenv
 jinja2
-pip install python-multipart
 qrcode[pil]  # Para gerar QR
 gunicorn  # Para deploy
