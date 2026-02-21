@@ -38,7 +38,6 @@ def create_api_key():
     return str(uuid.uuid4())
 
 def create_token(data: dict):
-    # Garante que 'sub' seja string
     if 'sub' in data:
         data['sub'] = str(data['sub'])
     return jwt.encode(data, SECRET_KEY, algorithm=ALGORITHM)
@@ -52,7 +51,6 @@ def get_current_user(request: Request):
         user_id_str: str = payload.get("sub")
         if user_id_str is None:
             raise HTTPException(status_code=401, detail="Token inválido: sem sub")
-        # Converte de volta para inteiro
         user_id = int(user_id_str)
         return user_id
     except ValueError:
