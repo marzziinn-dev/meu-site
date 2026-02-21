@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Revolution Pay{% endblock %}</title>
-    <!-- Bootstrap com tema Bootswatch Litera (limpo e moderno) -->
     <link href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/litera/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome 6 (ícones) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body {
@@ -44,9 +42,6 @@
             border-radius: 20px;
             font-weight: 500;
         }
-        .badge-pending { background-color: #ffc107; color: #000; }
-        .badge-approved { background-color: #198754; color: #fff; }
-        .badge-rejected { background-color: #dc3545; color: #fff; }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -84,7 +79,7 @@
                         </li>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user-circle"></i> {{ user_email }}
+                                <i class="fas fa-user-circle"></i> {{ user_email if user_email else 'Usuário' }}
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
                                 <li><a class="dropdown-item" href="/logout"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
