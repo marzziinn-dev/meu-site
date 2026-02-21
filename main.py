@@ -132,6 +132,7 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
     except:
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
+    # Simulação de QR Code
     pix_code = f"pix-{uuid.uuid4().hex[:10]}"
     qr = qrcode.make(pix_code)
     buffered = io.BytesIO()
