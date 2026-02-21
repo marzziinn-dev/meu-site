@@ -1,27 +1,21 @@
 {% extends "base.html" %}
-
-{% block title %}Registro - Revolution Pay{% endblock %}
-
+{% block title %}Registro{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-6 col-lg-4">
         <div class="card mt-5">
             <div class="card-body">
-                <h2 class="text-center mb-4">
-                    <i class="bi bi-person-plus"></i> Registrar
-                </h2>
+                <h2 class="text-center mb-4">Criar conta</h2>
                 <form method="post" action="/register">
                     <div class="mb-3">
-                        <label for="email" class="form-label">E-mail</label>
-                        <input type="email" class="form-control" id="email" name="email" required>
+                        <label class="form-label">E-mail</label>
+                        <input type="email" name="email" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label for="password" class="form-label">Senha</label>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                        <label class="form-label">Senha</label>
+                        <input type="password" name="password" class="form-control" required>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-check-circle"></i> Criar conta
-                    </button>
+                    <button type="submit" class="btn btn-primary w-100">Registrar</button>
                 </form>
                 <hr>
                 <p class="text-center mb-0">
