@@ -1,33 +1,61 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <title>Histórico</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <div class="container mt-5">
-        <h1>Histórico de Transações</h1>
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Tipo</th>
-                    <th>Valor</th>
-                    <th>Status</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for t in transactions %}
-                <tr>
-                    <td>{{ t.id }}</td>
-                    <td>{{ t.type }}</td>
-                    <td>R$ {{ t.amount }}</td>
-                    <td>{{ t.status }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        <a href="/dashboard" class="btn btn-primary">Voltar</a>
+{% extends "base.html" %}
+
+{% block title %}Histórico - Revolution Pay{% endblock %}
+
+{% block content %}
+<div class="row mt-4">
+    <div class="col-12">
+        <h2><i class="fas fa-history me-2"></i>Histórico de Transações</h2>
+        <hr>
     </div>
-</body>
-</html>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                {% if transactions %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Tipo</th>
+                                <th>Valor</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for t in transactions %}
+                            <tr>
+                                <td>#{{ t.id }}</td>
+                                <td>
+                                    {% if t.type == 'deposit' %}
+                                        <span class="badge bg-info text-dark"><i class="fas fa-arrow-down"></i> Depósito</span>
+                                    {% else %}
+                                        <span class="badge bg-warning text-dark"><i class="fas fa-arrow-up"></i> Saque</span>
+                                    {% endif %}
+                                </td>
+                                <td>R$ {{ "%.2f"|format(t.amount) }}</td>
+                                <td>
+                                    {% if t.status == 'approved' %}
+                                        <span class="badge badge-status bg-success">Aprovado</span>
+                                    {% elif t.status == 'pending' %}
+                                        <span class="badge badge-status bg-warning text-dark">Pendente</span>
+                                    {% else %}
+                                        <span class="badge badge-status bg-danger">Rejeitado</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Nenhuma transação encontrada.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
