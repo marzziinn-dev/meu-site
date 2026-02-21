@@ -7,7 +7,7 @@
     <div class="col-md-8 col-lg-6">
         <div class="card">
             <div class="card-header bg-white">
-                <h4 class="mb-0"><i class="fas fa-pix me-2 text-success"></i>Pague o depósito</h4>
+                <h4 class="mb-0"><i class="bi bi-pix"></i> Pague o depósito</h4>
             </div>
             <div class="card-body text-center">
                 <h5 class="mb-3">Valor: <strong class="text-success">R$ {{ "%.2f"|format(amount) }}</strong></h5>
@@ -19,15 +19,15 @@
                     <div class="input-group">
                         <input type="text" class="form-control" value="{{ pix_code }}" id="pixCode" readonly>
                         <button class="btn btn-outline-secondary" type="button" onclick="copyPix()">
-                            <i class="fas fa-copy"></i>
+                            <i class="bi bi-files"></i>
                         </button>
                     </div>
                 </div>
                 <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> Após o pagamento, o saldo será atualizado em instantes.
+                    <i class="bi bi-info-circle"></i> Após o pagamento, o saldo será atualizado em instantes.
                 </div>
                 <a href="/dashboard" class="btn btn-primary">
-                    <i class="fas fa-arrow-left"></i> Voltar ao Dashboard
+                    <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
                 </a>
             </div>
         </div>
