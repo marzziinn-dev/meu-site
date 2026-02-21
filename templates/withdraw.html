@@ -1,11 +1,24 @@
 {% extends "base.html" %}
 {% block title %}Saque{% endblock %}
 {% block content %}
-<form method="post" action="/withdraw">
-    <label>Valor (centavos):</label>
-    <input type="number" name="amount" required>
-    <label>Chave Pix:</label>
-    <input type="text" name="pix_key" value="{{ pix_key }}">
-    <button type="submit">Sacar</button>
-</form>
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Saque via Pix</div>
+            <div class="card-body">
+                <form method="post" action="/withdraw">
+                    <div class="mb-3">
+                        <label class="form-label">Valor (centavos)</label>
+                        <input type="number" name="amount" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Chave Pix</label>
+                        <input type="text" name="pix_key" class="form-control" value="{{ pix_key }}" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Sacar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
