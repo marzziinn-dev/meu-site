@@ -18,9 +18,19 @@ logger = logging.getLogger(__name__)
 
 Base.metadata.create_all(bind=engine)
 
+# ===== CORREÇÃO DAS TABELAS =====
 with engine.connect() as conn:
+    # Adiciona coluna pix_key em users se não existir
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pix_key VARCHAR;"))
+    # Adiciona todas as colunas necessárias em transactions
+    conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS user_id INTEGER;"))
+    conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_id VARCHAR;"))
+    conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS amount INTEGER;"))
+    conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status VARCHAR;"))
+    conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS type VARCHAR;"))
+    conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();"))
     conn.commit()
+# ================================
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -133,14 +143,12 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
     try:
-        # --- SIMULAÇÃO DE INTEGRAÇÃO COM A PROMISSE ---
-        # Aqui você vai substituir pela chamada real à API
+        # Simulação de integração com a Promisse
         pix_code = f"pix-{uuid.uuid4().hex[:10]}"
         qr = qrcode.make(pix_code)
         buffered = io.BytesIO()
         qr.save(buffered, format="PNG")
         qr_base64 = base64.b64encode(buffered.getvalue()).decode()
-        # ---------------------------------------------
 
         trans = Transaction(
             user_id=user_id,
@@ -188,10 +196,22 @@ def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Fo
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
     if user.balance_available < amount:
-        raise HTTPException(400, "Saldo insuficiente")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": "Saldo insuficiente para realizar o saque.",
+            "back_url": "/withdraw"
+        }, status_code=400)
     key = pix_key or user.pix_key
     if not key:
-        raise HTTPException(400, "Chave Pix obrigatória")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": "Chave Pix obrigatória.",
+            "back_url": "/withdraw"
+        }, status_code=400)
     if pix_key:
         user.pix_key = pix_key
     trans = Transaction(
@@ -227,10 +247,22 @@ def create_transfer(request: Request, dest_email: str = Form(...), amount: int =
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
     if user.balance_available < amount:
-        raise HTTPException(400, "Saldo insuficiente")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": "Saldo insuficiente para transferência.",
+            "back_url": "/transfer"
+        }, status_code=400)
     dest = db.query(User).filter(User.email == dest_email).first()
     if not dest:
-        raise HTTPException(400, "Destinatário não encontrado")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": "Destinatário não encontrado.",
+            "back_url": "/transfer"
+        }, status_code=400)
     out = Transaction(
         user_id=user_id,
         transaction_id=f"out-{uuid.uuid4()}",
@@ -260,7 +292,6 @@ def history(request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     try:
         trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
-        # Converte para lista de dicionários para facilitar no template
         transactions = []
         for t in trans:
             transactions.append({
