@@ -55,6 +55,10 @@ def register_form(request: Request):
 @app.post("/register")
 def register(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     try:
+        # Verifica se a senha excede 72 bytes (limite do bcrypt)
+        if len(password.encode('utf-8')) > 72:
+            raise HTTPException(400, "Senha muito longa. O máximo permitido é 72 caracteres.")
+        
         existing = db.query(User).filter(User.email == email).first()
         if existing:
             raise HTTPException(400, "Email já existe")
@@ -70,6 +74,8 @@ def register(email: str = Form(...), password: str = Form(...), db: Session = De
         response = RedirectResponse(url="/dashboard", status_code=302)
         response.set_cookie(key="access_token", value=token)
         return response
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"ERRO NO REGISTRO: {str(e)}")
         raise HTTPException(500, f"Erro interno: {str(e)}")
