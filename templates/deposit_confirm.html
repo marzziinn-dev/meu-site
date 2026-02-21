@@ -1,46 +1,26 @@
 {% extends "base.html" %}
-
-{% block title %}Pagar Depósito - Revolution Pay{% endblock %}
-
+{% block title %}Pagar Depósito{% endblock %}
 {% block content %}
-<div class="row justify-content-center mt-4">
-    <div class="col-md-8 col-lg-6">
+<div class="row justify-content-center">
+    <div class="col-md-6 text-center">
         <div class="card">
-            <div class="card-header bg-white">
-                <h4 class="mb-0"><i class="bi bi-pix"></i> Pague o depósito</h4>
-            </div>
-            <div class="card-body text-center">
-                <h5 class="mb-3">Valor: <strong class="text-success">R$ {{ "%.2f"|format(amount) }}</strong></h5>
-                <div class="my-4">
-                    <img src="data:image/png;base64,{{ qr_base64 }}" alt="QR Code Pix" class="img-fluid border p-2" style="max-width: 250px;">
+            <div class="card-header">Pague R$ {{ "%.2f"|format(amount) }}</div>
+            <div class="card-body">
+                <img src="data:image/png;base64,{{ qr_base64 }}" class="img-fluid mb-3">
+                <p><strong>Código Pix:</strong></p>
+                <div class="input-group">
+                    <input type="text" class="form-control" value="{{ pix_code }}" id="pixCode" readonly>
+                    <button class="btn btn-outline-secondary" onclick="copyPix()">Copiar</button>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label fw-bold">Código Pix (copia e cola)</label>
-                    <div class="input-group">
-                        <input type="text" class="form-control" value="{{ pix_code }}" id="pixCode" readonly>
-                        <button class="btn btn-outline-secondary" type="button" onclick="copyPix()">
-                            <i class="bi bi-files"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> Após o pagamento, o saldo será atualizado em instantes.
-                </div>
-                <a href="/dashboard" class="btn btn-primary">
-                    <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
-                </a>
+                <a href="/dashboard" class="btn btn-primary mt-3">Voltar</a>
             </div>
         </div>
     </div>
 </div>
-
 <script>
 function copyPix() {
-    var copyText = document.getElementById("pixCode");
-    copyText.select();
-    copyText.setSelectionRange(0, 99999);
-    navigator.clipboard.writeText(copyText.value);
-    alert("Código Pix copiado!");
+    navigator.clipboard.writeText(document.getElementById('pixCode').value);
+    alert('Copiado!');
 }
 </script>
 {% endblock %}
