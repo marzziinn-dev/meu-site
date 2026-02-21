@@ -1,28 +1,21 @@
 {% extends "base.html" %}
-
-{% block title %}Saque - Revolution Pay{% endblock %}
-
+{% block title %}Saque{% endblock %}
 {% block content %}
-<div class="row justify-content-center mt-4">
+<div class="row justify-content-center">
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header bg-white">
-                <h4 class="mb-0"><i class="bi bi-cash"></i> Solicitar saque via Pix</h4>
-            </div>
+            <div class="card-header">Solicitar saque</div>
             <div class="card-body">
                 <form method="post" action="/withdraw">
                     <div class="mb-3">
-                        <label class="form-label">Valor (em centavos)</label>
-                        <input type="number" name="amount" class="form-control" placeholder="Ex: 1000 = R$ 10,00" required>
+                        <label>Valor (centavos)</label>
+                        <input type="number" name="amount" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Chave Pix</label>
-                        <input type="text" name="pix_key" class="form-control" value="{{ pix_key }}" required>
-                        <div class="form-text">Se já tiver uma chave salva, ela aparecerá acima.</div>
+                        <label>Chave Pix</label>
+                        <input type="text" name="pix_key" class="form-control" value="{{ pix_key }}">
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-send"></i> Solicitar saque
-                    </button>
+                    <button type="submit" class="btn btn-primary">Sacar</button>
                 </form>
             </div>
         </div>
