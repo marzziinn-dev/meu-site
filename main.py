@@ -71,7 +71,7 @@ def login(email: str = Form(...), password: str = Form(...), db: Session = Depen
     return response
 
 @app.get("/dashboard", response_class=HTMLResponse)
-def dashboard(request: Request, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
+def dashboard(request: Request, user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     # Buscar últimas 5 transações
     recent_transactions = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).limit(5).all()
@@ -88,7 +88,7 @@ def dashboard(request: Request, user_id: int = Depends(get_current_user), db: Se
     })
 
 @app.get("/deposit", response_class=HTMLResponse)
-def deposit_form(request: Request, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
+def deposit_form(request: Request, user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     return templates.TemplateResponse("deposit.html", {
         "request": request,
@@ -97,7 +97,7 @@ def deposit_form(request: Request, user_id: int = Depends(get_current_user), db:
     })
 
 @app.post("/deposit")
-def create_deposit(amount: int = Form(...), user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_deposit(amount: int = Form(...), user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
 
     # Converte centavos para reais se a API esperar reais
@@ -171,7 +171,7 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     return {"message": "ok"}
 
 @app.get("/withdraw", response_class=HTMLResponse)
-def withdraw_form(request: Request, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
+def withdraw_form(request: Request, user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     return templates.TemplateResponse("withdraw.html", {
         "request": request,
@@ -181,7 +181,7 @@ def withdraw_form(request: Request, user_id: int = Depends(get_current_user), db
     })
 
 @app.post("/withdraw")
-def create_withdraw(amount: int = Form(...), pix_key: str = Form(None), user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
+def create_withdraw(amount: int = Form(...), pix_key: str = Form(None), user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if user.balance_available < amount:
         raise HTTPException(400, "Saldo insuficiente")
@@ -230,7 +230,7 @@ def create_withdraw(amount: int = Form(...), pix_key: str = Form(None), user_id:
         raise HTTPException(500, str(e))
 
 @app.get("/history", response_class=HTMLResponse)
-def history(request: Request, user_id: int = Depends(get_current_user), db: Session = Depends(get_db)):
+def history(request: Request, user_id: int = Depends(get_current_user_dep), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
     return templates.TemplateResponse("history.html", {
