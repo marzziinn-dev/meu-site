@@ -6,7 +6,7 @@
 <div class="row mb-4">
     <div class="col-12">
         <div class="card-modern gradient-bg text-center py-4">
-            <h2 class="fw-bold">Bem-vindo(a) ao Revolution Pay!</h2>
+            <h2 class="fw-bold">Bem-vindo(a), {{ user_nome }}!</h2>
             <p class="lead mb-0">Sua plataforma de pagamentos segura e rápida</p>
         </div>
     </div>
@@ -22,11 +22,8 @@
                     <h2 class="fw-bold text-success">R$ {{ "%.2f"|format(available) }}</h2>
                 </div>
                 <div class="bg-success bg-opacity-10 p-3 rounded-circle">
-                    <i class="bi bi-wallet2 fs-1 text-success"></i>
+                    <i class="bi bi-wallet2 fs-1" style="color: #FF8C00;"></i>
                 </div>
-            </div>
-            <div class="progress" style="height: 8px;">
-                <div class="progress-bar bg-success" style="width: 75%"></div>
             </div>
         </div>
     </div>
@@ -49,10 +46,10 @@
     <!-- Card de Estatísticas -->
     <div class="col-md-12 col-lg-4">
         <div class="card-modern">
-            <h5 class="text-muted mb-3">Últimas Transações</h5>
+            <h5 class="text-muted mb-3">Informações da Conta</h5>
             <div class="text-center text-muted py-3">
-                <i class="bi bi-clock-history fs-1"></i>
-                <p class="mb-0">Nenhuma transação recente</p>
+                <i class="bi bi-person-circle fs-1" style="color: #FF8C00;"></i>
+                <p class="mb-0">{{ user_email }}</p>
             </div>
         </div>
     </div>
@@ -61,12 +58,12 @@
 <!-- Seção de Recursos -->
 <div class="row mt-5">
     <div class="col-12">
-        <h3 class="text-center mb-4">Por que escolher Revolution Pay?</h3>
+        <h3 class="text-center mb-4" style="color: #FF8C00;">Por que escolher Revolution Pay?</h3>
     </div>
     
     <div class="col-md-4 mb-3">
         <div class="card-modern text-center h-100">
-            <i class="bi bi-shield-check fs-1 text-primary"></i>
+            <i class="bi bi-shield-check fs-1" style="color: #FF8C00;"></i>
             <h5>100% Seguro</h5>
             <p class="text-muted">Pagamentos criptografados e protegidos</p>
         </div>
@@ -74,7 +71,7 @@
     
     <div class="col-md-4 mb-3">
         <div class="card-modern text-center h-100">
-            <i class="bi bi-lightning-charge fs-1 text-warning"></i>
+            <i class="bi bi-lightning-charge fs-1" style="color: #FF8C00;"></i>
             <h5>Instantâneo</h5>
             <p class="text-muted">Transações em tempo real</p>
         </div>
@@ -82,7 +79,7 @@
     
     <div class="col-md-4 mb-3">
         <div class="card-modern text-center h-100">
-            <i class="bi bi-headset fs-1 text-success"></i>
+            <i class="bi bi-headset fs-1" style="color: #5865F2;"></i>
             <h5>Suporte 24/7</h5>
             <p class="text-muted">Equipe sempre disponível no Discord</p>
         </div>
