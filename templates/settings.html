@@ -1,23 +1,35 @@
 {% extends "base.html" %}
+
 {% block title %}Configurações{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">Configurações da conta</div>
-            <div class="card-body">
-                <form method="post" action="/settings">
-                    <div class="mb-3">
-                        <label class="form-label">Chave Pix</label>
-                        <input type="text" name="pix_key" class="form-control" value="{{ user.pix_key }}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">E-mail</label>
-                        <input type="email" class="form-control" value="{{ user.email }}" disabled>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Salvar</button>
-                </form>
+    <div class="col-md-8">
+        <div class="card-modern">
+            <div class="text-center mb-4">
+                <i class="bi bi-gear display-1 text-primary"></i>
+                <h2 class="fw-bold">Configurações da Conta</h2>
+                <p class="text-muted">Gerencie suas informações pessoais</p>
             </div>
+            
+            <form method="post" action="/settings">
+                <div class="mb-3">
+                    <label class="form-label">Chave Pix</label>
+                    <input type="text" name="pix_key" class="form-control form-control-lg" 
+                           value="{{ user.pix_key }}" placeholder="Digite sua chave Pix">
+                    <div class="form-text">Sua chave Pix para receber saques e transferências</div>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="form-label">E-mail</label>
+                    <input type="email" class="form-control form-control-lg" value="{{ user.email }}" disabled>
+                    <div class="form-text">Seu e-mail de login (não pode ser alterado)</div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary-modern w-100 py-3">
+                    <i class="bi bi-check-circle"></i> Salvar Alterações
+                </button>
+            </form>
         </div>
     </div>
 </div>
