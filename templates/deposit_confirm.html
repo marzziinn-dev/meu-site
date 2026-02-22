@@ -8,18 +8,36 @@
                 <i class="bi bi-check-circle"></i> Pagamento gerado
             </div>
             <div class="card-body text-center">
-                <div class="alert alert-info" id="aviso">
+                <!-- Mensagem inicial -->
+                <div class="alert alert-info" id="avisoInicial">
                     <i class="bi bi-info-circle"></i>
-                    Após o pagamento, o saldo será atualizado em instantes.
+                    Após o pagamento, clique em "Verificar pagamento" para confirmar.
                     <br>
                     <small>Taxa de 3% já descontada.</small>
                 </div>
                 
-                <div id="confirmado" style="display: none;">
-                    <div class="alert alert-success">
-                        <i class="bi bi-check-circle-fill"></i>
-                        <strong>Pagamento confirmado!</strong> O saldo já está disponível.
-                    </div>
+                <!-- Mensagem de sucesso (inicia oculta) -->
+                <div class="alert alert-success" id="msgSucesso" style="display: none;">
+                    <i class="bi bi-check-circle-fill"></i>
+                    <strong>Pagamento confirmado!</strong> O saldo já está disponível.
+                    <br>
+                    <a href="/dashboard" class="alert-link">Ir para o Dashboard</a>
+                </div>
+                
+                <!-- Mensagem de pendente (inicia oculta) -->
+                <div class="alert alert-warning" id="msgPendente" style="display: none;">
+                    <i class="bi bi-hourglass-split"></i>
+                    <strong>Pagamento ainda não identificado.</strong>
+                    <br>
+                    <small>O Pix pode levar alguns segundos para ser processado. Tente novamente em instantes.</small>
+                </div>
+                
+                <!-- Mensagem de erro (inicia oculta) -->
+                <div class="alert alert-danger" id="msgErro" style="display: none;">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Erro ao verificar pagamento.</strong>
+                    <br>
+                    <small>Tente novamente mais tarde.</small>
                 </div>
                 
                 <h5 class="mb-3">Valor a pagar: <strong class="text-success">R$ {{ "%.2f"|format(amount) }}</strong></h5>
@@ -39,12 +57,12 @@
                 </div>
                 
                 <div class="d-grid gap-2">
-                    <a href="/dashboard" class="btn btn-primary">
+                    <button class="btn btn-primary" onclick="verificarPagamento()" id="btnVerificar">
+                        <i class="bi bi-arrow-repeat"></i> Verificar pagamento
+                    </button>
+                    <a href="/dashboard" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
                     </a>
-                    <button class="btn btn-outline-success" onclick="verificarPagamento()" id="btnVerificar">
-                        <i class="bi bi-arrow-repeat"></i> Verificar se já paguei
-                    </button>
                 </div>
             </div>
         </div>
@@ -58,27 +76,39 @@ function copyPix() {
 }
 
 function verificarPagamento() {
-    // Simula verificação (na prática, o webhook já atualizou)
-    fetch('/dashboard')
-        .then(response => response.text())
-        .then(html => {
-            // Se chegou aqui, a sessão ainda está ativa
-            // Recarrega a página para ver o saldo atualizado
-            window.location.href = '/dashboard';
-        });
-}
-
-// Verifica a cada 10 segundos se o pagamento foi confirmado
-setInterval(function() {
+    const btn = document.getElementById('btnVerificar');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Verificando...';
+    btn.disabled = true;
+    
+    // Esconde mensagens anteriores
+    document.getElementById('msgSucesso').style.display = 'none';
+    document.getElementById('msgPendente').style.display = 'none';
+    document.getElementById('msgErro').style.display = 'none';
+    
     fetch('/api/verificar-transacao/{{ transaction_id }}')
         .then(response => response.json())
         .then(data => {
             if (data.status === 'approved') {
-                document.getElementById('aviso').style.display = 'none';
-                document.getElementById('confirmado').style.display = 'block';
-                document.getElementById('btnVerificar').disabled = true;
+                document.getElementById('msgSucesso').style.display = 'block';
+                document.getElementById('avisoInicial').style.display = 'none';
+            } else if (data.status === 'pending') {
+                document.getElementById('msgPendente').style.display = 'block';
+            } else {
+                document.getElementById('msgErro').style.display = 'block';
             }
+        })
+        .catch(error => {
+            document.getElementById('msgErro').style.display = 'block';
+            console.error('Erro:', error);
+        })
+        .finally(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
         });
-}, 10000);
+}
+
+// Opcional: verifica automaticamente a cada 30 segundos
+setInterval(verificarPagamento, 30000);
 </script>
 {% endblock %}
