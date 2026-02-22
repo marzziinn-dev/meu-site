@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 Base.metadata.create_all(bind=engine)
 
-# Correção das tabelas (se necessário)
+# ===== CORREÇÃO DAS TABELAS =====
 with engine.connect() as conn:
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pix_key VARCHAR;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS user_id INTEGER;"))
@@ -28,14 +28,14 @@ with engine.connect() as conn:
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS type VARCHAR;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();"))
     conn.commit()
+# ================================
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 # Variáveis de ambiente
 SECRET_KEY = os.getenv("SECRET_KEY")
-PROMISSE_API_KEY = os.getenv("PROMISSE_API_KEY")  # Nome correto
-API_BASE = "https://api.promisse.com.br"  # Sem /v1
+PROMISSE_API_KEY = os.getenv("PROMISSE_API_KEY")
 
 logger.info("=== VERIFICAÇÃO DE CREDENCIAIS ===")
 logger.info(f"SECRET_KEY definida: {'sim' if SECRET_KEY else 'não'}")
@@ -51,7 +51,6 @@ def get_db():
     finally:
         db.close()
 
-# -------------------- ROTAS DE AUTENTICAÇÃO --------------------
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
     try:
@@ -68,6 +67,7 @@ def register_form(request: Request):
 
 @app.post("/register")
 def register(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    logger.info(f"Registro: {email}")
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(400, "Email já existe")
     user = User(
@@ -79,6 +79,7 @@ def register(email: str = Form(...), password: str = Form(...), db: Session = De
     db.commit()
     db.refresh(user)
     token = create_token({"sub": user.id})
+    logger.info(f"Token gerado no registro: {token[:20]}...")
     response = RedirectResponse(url="/dashboard", status_code=302)
     response.set_cookie(
         key="access_token",
@@ -92,10 +93,12 @@ def register(email: str = Form(...), password: str = Form(...), db: Session = De
 
 @app.post("/login")
 def login(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    logger.info(f"Login: {email}")
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.password):
         raise HTTPException(400, "Credenciais inválidas")
     token = create_token({"sub": user.id})
+    logger.info(f"Token gerado no login: {token[:20]}...")
     response = RedirectResponse(url="/dashboard", status_code=302)
     response.set_cookie(
         key="access_token",
@@ -109,9 +112,13 @@ def login(email: str = Form(...), password: str = Form(...), db: Session = Depen
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_db)):
+    cookie_token = request.cookies.get("access_token")
+    logger.info(f"Cookie recebido no dashboard: {cookie_token[:20] if cookie_token else 'Nenhum'}")
     try:
         user_id = get_current_user(request)
-    except HTTPException:
+        logger.info(f"Autenticação OK, user_id: {user_id}")
+    except HTTPException as e:
+        logger.warning(f"Falha na autenticação: {e.detail}")
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
     return templates.TemplateResponse("dashboard.html", {
@@ -121,7 +128,6 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "available": user.balance_available / 100
     })
 
-# -------------------- ROTA DE DEPÓSITO (CORRIGIDA) --------------------
 @app.get("/deposit", response_class=HTMLResponse)
 def deposit_form(request: Request, db: Session = Depends(get_db)):
     try:
@@ -143,7 +149,6 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
 
-    # Validação da chave da API
     if not PROMISSE_API_KEY:
         logger.error("PROMISSE_API_KEY não configurada")
         return templates.TemplateResponse("error.html", {
@@ -154,16 +159,10 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "back_url": "/deposit"
         }, status_code=500)
 
-    # Converte centavos para reais
-    amount_real = amount / 100
-
-    # Payload exatamente como no exemplo da documentação
+    # Payload IGUAL ao curl que funciona: amount como número (já em centavos)
     payload = {
-        "amount": amount_real,
+        "amount": amount,  # amount já vem em centavos do formulário
         "webhook": "https://revolution-pay.onrender.com/webhook"
-        # Se quiser incluir split, descomente:
-        # "split_email": "seu-email@exemplo.com",
-        # "split_tax": 5
     }
 
     headers = {
@@ -171,7 +170,7 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         "Content-Type": "application/json"
     }
 
-    url = f"{API_BASE}/transactions"
+    url = "https://api.promisse.com.br/transactions"
     logger.info(f"Enviando requisição para {url}")
     logger.info(f"Payload: {json.dumps(payload)}")
     logger.info(f"Headers: Authorization: Bearer {PROMISSE_API_KEY[:10]}... (oculto)")
@@ -181,15 +180,6 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         logger.info(f"Status code: {response.status_code}")
         logger.info(f"Resposta bruta: {response.text}")
 
-        # Se a resposta não for JSON, tenta extrair texto
-        try:
-            data = response.json()
-            logger.info(f"Resposta JSON: {json.dumps(data, indent=2)}")
-        except:
-            data = {"raw": response.text}
-            logger.error(f"Resposta não é JSON: {response.text}")
-
-        # Verifica se houve erro HTTP
         if response.status_code not in (200, 201):
             error_msg = f"Erro na API Promisse: {response.status_code} - {response.text}"
             logger.error(error_msg)
@@ -201,7 +191,21 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
                 "back_url": "/deposit"
             }, status_code=400)
 
-        # Verifica se a resposta contém erro (ex: ACCESS_FORBIDDEN)
+        try:
+            data = response.json()
+        except:
+            data = {"raw": response.text}
+            logger.error(f"Resposta não é JSON: {response.text}")
+            return templates.TemplateResponse("error.html", {
+                "request": request,
+                "user_logged_in": True,
+                "user_email": user.email,
+                "error_message": "Resposta inválida da API.",
+                "back_url": "/deposit"
+            }, status_code=500)
+
+        logger.info(f"Resposta JSON: {json.dumps(data, indent=2)}")
+
         if data.get("status") == "error":
             error_code = data.get("code", "desconhecido")
             error_msg = f"Erro na API Promisse: {error_code}"
@@ -216,7 +220,6 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
 
         # Extrai os campos da resposta
         qr_base64 = data.get("qrCodeBase64", "")
-        # Remove o prefixo "data:image/png;base64," se existir
         if qr_base64.startswith("data:image/png;base64,"):
             qr_base64 = qr_base64.replace("data:image/png;base64,", "")
         pix_code = data.get("copyPaste", "")
@@ -245,7 +248,6 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         user.balance_pending += amount
         db.commit()
 
-        # Renderiza a página de confirmação
         return templates.TemplateResponse("deposit_confirm.html", {
             "request": request,
             "user_logged_in": True,
@@ -274,11 +276,6 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "error_message": f"Erro interno: {str(e)}",
             "back_url": "/deposit"
         }, status_code=500)
-
-# -------------------- DEMAIS ROTAS (withdraw, transfer, history, settings, logout) --------------------
-# (Mantenha as rotas de saque, transferência, histórico, configurações e logout exatamente como estavam)
-# Para economizar espaço, vou resumir: elas não precisam ser alteradas, a menos que você queira.
-# Cole abaixo as rotas que já estavam funcionando.
 
 @app.get("/withdraw", response_class=HTMLResponse)
 def withdraw_form(request: Request, db: Session = Depends(get_db)):
@@ -396,22 +393,32 @@ def history(request: Request, db: Session = Depends(get_db)):
     except:
         return RedirectResponse(url="/")
     user = db.query(User).filter(User.id == user_id).first()
-    trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
-    transactions = []
-    for t in trans:
-        transactions.append({
-            "id": t.id,
-            "type": t.type,
-            "amount": t.amount / 100,
-            "status": t.status,
-            "created_at": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else ""
+    try:
+        trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
+        transactions = []
+        for t in trans:
+            transactions.append({
+                "id": t.id,
+                "type": t.type,
+                "amount": t.amount / 100,
+                "status": t.status,
+                "created_at": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else ""
+            })
+        return templates.TemplateResponse("history.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "transactions": transactions
         })
-    return templates.TemplateResponse("history.html", {
-        "request": request,
-        "user_logged_in": True,
-        "user_email": user.email,
-        "transactions": transactions
-    })
+    except Exception as e:
+        logger.error(f"Erro no histórico: {str(e)}", exc_info=True)
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": f"Erro interno no histórico: {str(e)}",
+            "back_url": "/dashboard"
+        }, status_code=500)
 
 @app.get("/settings", response_class=HTMLResponse)
 def settings_form(request: Request, db: Session = Depends(get_db)):
