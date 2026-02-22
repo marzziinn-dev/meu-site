@@ -12,6 +12,7 @@ import uuid
 import base64
 import requests
 import json
+import re
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -60,6 +61,42 @@ def get_admin(request: Request):
     admin_token = request.cookies.get("admin_token")
     if admin_token != "admin_logado":
         raise HTTPException(status_code=401, detail="Acesso negado")
+    return True
+
+# Função para validar CPF (matematicamente)
+def validar_cpf(cpf: str) -> bool:
+    """Valida se um CPF é matematicamente válido"""
+    # Remove caracteres não numéricos
+    cpf = re.sub(r'[^0-9]', '', cpf)
+    
+    # Verifica se tem 11 dígitos
+    if len(cpf) != 11:
+        return False
+    
+    # Verifica se todos os dígitos são iguais (ex: 111.111.111-11)
+    if cpf == cpf[0] * 11:
+        return False
+    
+    # Validação do primeiro dígito verificador
+    soma = 0
+    for i in range(9):
+        soma += int(cpf[i]) * (10 - i)
+    resto = 11 - (soma % 11)
+    if resto > 9:
+        resto = 0
+    if int(cpf[9]) != resto:
+        return False
+    
+    # Validação do segundo dígito verificador
+    soma = 0
+    for i in range(10):
+        soma += int(cpf[i]) * (11 - i)
+    resto = 11 - (soma % 11)
+    if resto > 9:
+        resto = 0
+    if int(cpf[10]) != resto:
+        return False
+    
     return True
 
 # ==================== PAINEL ADMIN SECRETO ====================
@@ -242,15 +279,48 @@ def register(
 ):
     logger.info(f"Novo registro: {email}")
     
+    # ===== VALIDAÇÃO DO NOME COMPLETO =====
+    # Remove espaços extras no início e fim
+    nome_completo = nome_completo.strip()
+    
+    # Verifica se tem pelo menos duas partes (nome e sobrenome)
+    partes = nome_completo.split()
+    if len(partes) < 2:
+        raise HTTPException(400, "Nome completo deve conter pelo menos nome e sobrenome (ex: João Silva)")
+    
+    # Verifica se contém apenas letras e espaços
+    for parte in partes:
+        if not parte.isalpha():
+            raise HTTPException(400, "Nome deve conter apenas letras (sem números ou caracteres especiais)")
+    
+    # Verifica o tamanho mínimo de cada parte (pelo menos 2 letras)
+    for parte in partes:
+        if len(parte) < 2:
+            raise HTTPException(400, "Cada parte do nome deve ter pelo menos 2 letras")
+    
+    # ===== VALIDAÇÃO DO CPF =====
+    # Remove caracteres especiais (.,-)
+    cpf_limpo = re.sub(r'[^0-9]', '', cpf)
+    
+    # Verifica se tem 11 dígitos
+    if not cpf_limpo.isdigit() or len(cpf_limpo) != 11:
+        raise HTTPException(400, "CPF deve conter 11 dígitos numéricos (ex: 123.456.789-00)")
+    
+    # Validação matemática do CPF
+    if not validar_cpf(cpf_limpo):
+        raise HTTPException(400, "CPF inválido. Digite um CPF válido.")
+    
+    # ===== VALIDAÇÕES EXISTENTES =====
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(400, "Email já existe")
     
-    if db.query(User).filter(User.cpf == cpf).first():
+    if db.query(User).filter(User.cpf == cpf_limpo).first():
         raise HTTPException(400, "CPF já cadastrado")
     
+    # Cria usuário com CPF limpo (apenas números)
     user = User(
         nome_completo=nome_completo,
-        cpf=cpf,
+        cpf=cpf_limpo,
         email=email,
         password=hash_password(password),
         api_key=create_api_key()
@@ -504,64 +574,6 @@ def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Fo
     
     key = pix_key or user.pix_key
     if not key:
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "error_message": "Chave Pix obrigatória.",
-            "back_url": "/withdraw"
-        }, status_code=400)
-    
-    if pix_key:
-        user.pix_key = pix_key
-    
-    trans = Transaction(
-        user_id=user_id,
-        transaction_id=f"withdraw-{uuid.uuid4()}",
-        amount=-amount,
-        final_amount=-amount,
-        status="approved",
-        type="withdraw"
-    )
-    db.add(trans)
-    user.balance_available -= amount
-    db.commit()
-    
-    return RedirectResponse("/dashboard", 302)
-
-@app.get("/transfer", response_class=HTMLResponse)
-def transfer_form(request: Request, db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    return templates.TemplateResponse("transfer.html", {
-        "request": request,
-        "user_logged_in": True,
-        "user_email": user.email,
-        "available": user.balance_available / 100
-    })
-
-@app.post("/transfer")
-def create_transfer(request: Request, dest_email: str = Form(...), amount: int = Form(...), db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    
-    if user.balance_available < amount:
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "error_message": f"Saldo insuficiente. Disponível: R$ {user.balance_available/100:.2f}",
-            "back_url": "/transfer"
-        }, status_code=400)
-    
-    dest = db.query(User).filter(User.email == dest_email).first()
-    if not dest:
         return templates.TemplateResponse("error.html", {
             "request": request,
             "user_logged_in": True,
