@@ -159,7 +159,7 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "back_url": "/deposit"
         }, status_code=500)
 
-    # Payload IGUAL ao curl que funciona: amount como número (já em centavos)
+    # Payload exato que funcionou no teste manual
     payload = {
         "amount": amount,  # amount já vem em centavos do formulário
         "webhook": "https://revolution-pay.onrender.com/webhook"
@@ -194,7 +194,6 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         try:
             data = response.json()
         except:
-            data = {"raw": response.text}
             logger.error(f"Resposta não é JSON: {response.text}")
             return templates.TemplateResponse("error.html", {
                 "request": request,
