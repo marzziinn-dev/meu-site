@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Revolution Pay</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body {
+            background: #f4f6f9;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .sidebar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            padding: 20px;
+        }
+        .sidebar a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            padding: 10px;
+            display: block;
+            border-radius: 10px;
+            margin-bottom: 5px;
+            transition: all 0.3s;
+        }
+        .sidebar a:hover {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            transform: translateX(5px);
+        }
+        .sidebar .active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            font-weight: 600;
+        }
+        .main-content {
+            padding: 30px;
+        }
+        .stats-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+        .stats-card:hover {
+            transform: translateY(-5px);
+        }
+        .stats-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        .bg-gradient-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .bg-gradient-success { background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); color: white; }
+        .bg-gradient-info { background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%); color: white; }
+        .bg-gradient-warning { background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%); color: white; }
+        .table-admin {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .table-admin thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-admin-action {
+            padding: 5px 10px;
+            font-size: 12px;
+            border-radius: 5px;
+            margin: 0 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar">
+                <h3 class="text-center mb-4 mt-2">
+                    <i class="bi bi-shield-lock"></i> Admin
+                </h3>
+                <hr style="background: rgba(255,255,255,0.2);">
+                
+                <a href="/admin-dashboard-7h4g9w" class="active">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a href="#usuarios" data-bs-toggle="collapse">
+                    <i class="bi bi-people"></i> Usuários
+                </a>
+                <div class="collapse" id="usuarios">
+                    <a href="#" style="padding-left: 40px;">Listar todos</a>
+                    <a href="#" style="padding-left: 40px;">Adicionar saldo</a>
+                </div>
+                <a href="#transacoes" data-bs-toggle="collapse">
+                    <i class="bi bi-clock-history"></i> Transações
+                </a>
+                <div class="collapse" id="transacoes">
+                    <a href="#" style="padding-left: 40px;">Todas transações</a>
+                    <a href="#" style="padding-left: 40px;">Pendentes</a>
+                </div>
+                <a href="/admin/recuperar-transacoes" target="_blank">
+                    <i class="bi bi-arrow-repeat"></i> Recuperar transações
+                </a>
+                <hr style="background: rgba(255,255,255,0.2);">
+                <a href="/admin/logout">
+                    <i class="bi bi-box-arrow-right"></i> Sair
+                </a>
+            </div>
+            
+            <!-- Main content -->
+            <div class="col-md-10 main-content">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2><i class="bi bi-shield-lock"></i> Painel de Controle Admin</h2>
+                    <span class="badge bg-danger">Modo Desenvolvedor</span>
+                </div>
+                
+                <!-- Cards de estatísticas -->
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-icon bg-gradient-primary">
+                                <i class="bi bi-people"></i>
+                            </div>
+                            <h5>Total de Usuários</h5>
+                            <h3>{{ stats.total_usuarios }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-icon bg-gradient-success">
+                                <i class="bi bi-cash"></i>
+                            </div>
+                            <h5>Saldo Disponível</h5>
+                            <h3>R$ {{ "%.2f"|format(stats.saldo_total) }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-icon bg-gradient-info">
+                                <i class="bi bi-hourglass-split"></i>
+                            </div>
+                            <h5>Saldo Pendente</h5>
+                            <h3>R$ {{ "%.2f"|format(stats.saldo_pendente) }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stats-card">
+                            <div class="stats-icon bg-gradient-warning">
+                                <i class="bi bi-clock-history"></i>
+                            </div>
+                            <h5>Total Transações</h5>
+                            <h3>{{ stats.total_transacoes }}</h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Formulário para adicionar/remover saldo -->
+                <div class="row mt-
