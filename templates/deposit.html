@@ -1,50 +1,56 @@
 {% extends "base.html" %}
+
 {% block title %}Depósito{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-qr-code"></i> Depósito via Pix
+    <div class="col-md-8">
+        <div class="card-modern">
+            <div class="text-center mb-4">
+                <i class="bi bi-qr-code display-1 text-primary"></i>
+                <h2 class="fw-bold">Depósito via Pix</h2>
+                <p class="text-muted">Adicione fundos à sua conta de forma rápida e segura</p>
             </div>
-            <div class="card-body">
-                <div class="alert alert-warning">
-                    <i class="bi bi-exclamation-triangle"></i>
+            
+            <div class="alert alert-warning d-flex align-items-center gap-3 mb-4">
+                <i class="bi bi-exclamation-triangle fs-4"></i>
+                <div>
                     <strong>Taxa de 3%</strong> sobre o valor depositado.
                     <br>
                     <small>Ex: Se depositar R$ 10,00, cairá R$ 9,70 na sua conta.</small>
                 </div>
-                <form method="post" action="/deposit" id="depositForm">
-                    <div class="mb-3">
-                        <label class="form-label">Valor do depósito (R$)</label>
-                        <input type="number" step="0.01" min="0.01" name="amount_real" class="form-control" id="amountReal" required autofocus oninput="updateValues()">
-                        <div class="form-text">Digite o valor em reais (ex: 10.00)</div>
-                    </div>
-                    
-                    <div class="mb-4 p-3 bg-light rounded">
-                        <div class="d-flex justify-content-between mb-2">
-                            <span>Valor depositado:</span>
-                            <span id="valorOriginal">R$ 0,00</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2 text-danger">
-                            <span>Taxa (3%):</span>
-                            <span id="taxa">- R$ 0,00</span>
-                        </div>
-                        <hr>
-                        <div class="d-flex justify-content-between fw-bold">
-                            <span>Você receberá:</span>
-                            <span id="recebe" class="text-success">R$ 0,00</span>
-                        </div>
-                    </div>
-
-                    <input type="hidden" name="amount" id="amountCents">
-                    <input type="hidden" name="final_amount" id="finalAmountCents">
-                    
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-qr-code"></i> Gerar QR Code
-                    </button>
-                </form>
             </div>
+            
+            <form method="post" action="/deposit" id="depositForm">
+                <div class="mb-3">
+                    <label class="form-label">Valor do depósito (R$)</label>
+                    <input type="number" step="0.01" min="0.01" name="amount_real" class="form-control form-control-lg" id="amountReal" required autofocus oninput="updateValues()">
+                    <div class="form-text">Digite o valor em reais (ex: 10.00)</div>
+                </div>
+                
+                <div class="bg-light p-4 rounded-3 mb-4">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span>Valor depositado:</span>
+                        <span class="fw-bold" id="valorOriginal">R$ 0,00</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 text-danger">
+                        <span>Taxa (3%):</span>
+                        <span class="fw-bold" id="taxa">- R$ 0,00</span>
+                    </div>
+                    <hr>
+                    <div class="d-flex justify-content-between fw-bold">
+                        <span>Você receberá:</span>
+                        <span class="text-success fs-4" id="recebe">R$ 0,00</span>
+                    </div>
+                </div>
+
+                <input type="hidden" name="amount" id="amountCents">
+                <input type="hidden" name="final_amount" id="finalAmountCents">
+                
+                <button type="submit" class="btn btn-primary-modern w-100 py-3">
+                    <i class="bi bi-qr-code"></i> Gerar QR Code
+                </button>
+            </form>
         </div>
     </div>
 </div>
@@ -54,7 +60,7 @@ function updateValues() {
     let valorReal = parseFloat(document.getElementById('amountReal').value) || 0;
     let valorCents = Math.round(valorReal * 100);
     
-    let taxa = Math.round(valorCents * 0.03); // 3% em centavos
+    let taxa = Math.round(valorCents * 0.03);
     let finalCents = valorCents - taxa;
     
     document.getElementById('valorOriginal').innerText = 'R$ ' + (valorCents / 100).toFixed(2);
