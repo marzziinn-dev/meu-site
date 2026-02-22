@@ -190,6 +190,35 @@ def admin_usuario_detalhe(
         "transacoes": transacoes
     })
 
+@app.get("/admin/recuperar-transacoes")
+def recuperar_transacoes(request: Request, db: Session = Depends(get_db), admin: bool = Depends(get_admin)):
+    """Rota para recuperar transações pendentes antigas (use apenas uma vez)"""
+    pendentes = db.query(Transaction).filter(
+        Transaction.status == "pending",
+        Transaction.type == "deposit"
+    ).all()
+    
+    resultados = []
+    for trans in pendentes:
+        user = db.query(User).filter(User.id == trans.user_id).first()
+        if user:
+            user.balance_pending -= trans.final_amount
+            user.balance_available += trans.final_amount
+            trans.status = "approved"
+            resultados.append({
+                "id": trans.id,
+                "user_email": user.email,
+                "amount": trans.amount,
+                "final_amount": trans.final_amount,
+                "status": "approved (recuperado)"
+            })
+    
+    db.commit()
+    return {
+        "mensagem": "Recuperação concluída",
+        "transacoes_recuperadas": resultados
+    }
+
 @app.get("/admin/logout")
 def admin_logout():
     """Sair do painel admin"""
@@ -297,36 +326,6 @@ def verificar_transacao(transaction_id: str, request: Request, db: Session = Dep
         "amount": trans.amount,
         "final_amount": trans.final_amount
     })
-
-@app.get("/admin/recuperar-transacoes")
-def recuperar_transacoes(request: Request, db: Session = Depends(get_db), admin: bool = Depends(get_admin)):
-    """Rota para recuperar transações pendentes antigas (use apenas uma vez)"""
-    pendentes = db.query(Transaction).filter(
-        Transaction.status == "pending",
-        Transaction.type == "deposit"
-    ).all()
-    
-    resultados = []
-    for trans in pendentes:
-        # SIMULAÇÃO: considera que todas as transações pendentes antigas foram aprovadas
-        user = db.query(User).filter(User.id == trans.user_id).first()
-        if user:
-            user.balance_pending -= trans.final_amount
-            user.balance_available += trans.final_amount
-            trans.status = "approved"
-            resultados.append({
-                "id": trans.id,
-                "user_email": user.email,
-                "amount": trans.amount,
-                "final_amount": trans.final_amount,
-                "status": "approved (recuperado)"
-            })
-    
-    db.commit()
-    return {
-        "mensagem": "Recuperação concluída",
-        "transacoes_recuperadas": resultados
-    }
 
 @app.get("/deposit", response_class=HTMLResponse)
 def deposit_form(request: Request, db: Session = Depends(get_db)):
@@ -556,4 +555,7 @@ def create_transfer(request: Request, dest_email: str = Form(...), amount: int =
     user = db.query(User).filter(User.id == user_id).first()
     
     if user.balance_available < amount:
-        return templates.TemplateResponse("error.
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            
