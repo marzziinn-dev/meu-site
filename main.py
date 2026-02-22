@@ -61,15 +61,10 @@ def get_admin(request: Request):
     return True
 
 # ==================== PAINEL ADMIN SECRETO ====================
-# Acesso: /admin-painel-9f3k2d
-# Senha: Revolution555mwller
-# ==============================================================
-
 SENHA_ADMIN = "Revolution555mwller"
 
 @app.get("/admin-painel-9f3k2d", response_class=HTMLResponse)
 def admin_login_form(request: Request):
-    """Página de login do admin"""
     return templates.TemplateResponse("admin_login.html", {
         "request": request,
         "user_logged_in": False
@@ -77,7 +72,6 @@ def admin_login_form(request: Request):
 
 @app.post("/admin-painel-9f3k2d")
 def admin_login(request: Request, senha: str = Form(...)):
-    """Faz login no painel admin"""
     if senha == SENHA_ADMIN:
         response = RedirectResponse(url="/admin-dashboard-7h4g9w", status_code=302)
         response.set_cookie(key="admin_token", value="admin_logado", httponly=True)
@@ -91,7 +85,6 @@ def admin_login(request: Request, senha: str = Form(...)):
 
 @app.get("/admin-dashboard-7h4g9w", response_class=HTMLResponse)
 def admin_dashboard(request: Request, db: Session = Depends(get_db), admin: bool = Depends(get_admin)):
-    """Dashboard principal do admin"""
     usuarios = db.query(User).all()
     transacoes = db.query(Transaction).order_by(Transaction.id.desc()).limit(50).all()
     
@@ -119,7 +112,6 @@ def admin_adicionar_saldo(
     db: Session = Depends(get_db),
     admin: bool = Depends(get_admin)
 ):
-    """Adiciona saldo a um usuário"""
     user = db.query(User).filter(User.email == email).first()
     if not user:
         return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
@@ -146,7 +138,6 @@ def admin_remover_saldo(
     db: Session = Depends(get_db),
     admin: bool = Depends(get_admin)
 ):
-    """Remove saldo de um usuário"""
     user = db.query(User).filter(User.email == email).first()
     if not user:
         return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
@@ -175,7 +166,6 @@ def admin_usuario_detalhe(
     db: Session = Depends(get_db),
     admin: bool = Depends(get_admin)
 ):
-    """Detalhes de um usuário específico"""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
@@ -192,7 +182,6 @@ def admin_usuario_detalhe(
 
 @app.get("/admin/recuperar-transacoes")
 def recuperar_transacoes(request: Request, db: Session = Depends(get_db), admin: bool = Depends(get_admin)):
-    """Rota para recuperar transações pendentes antigas (use apenas uma vez)"""
     pendentes = db.query(Transaction).filter(
         Transaction.status == "pending",
         Transaction.type == "deposit"
@@ -221,7 +210,6 @@ def recuperar_transacoes(request: Request, db: Session = Depends(get_db), admin:
 
 @app.get("/admin/logout")
 def admin_logout():
-    """Sair do painel admin"""
     response = RedirectResponse(url="/", status_code=302)
     response.delete_cookie("admin_token")
     return response
@@ -307,7 +295,6 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/api/verificar-transacao/{transaction_id}")
 def verificar_transacao(transaction_id: str, request: Request, db: Session = Depends(get_db)):
-    """API para verificar status de uma transação (usado pelo frontend)"""
     try:
         user_id = get_current_user(request)
     except:
@@ -361,11 +348,6 @@ def create_deposit(request: Request,
             "back_url": "/deposit"
         }, status_code=500)
 
-    # Calcula taxa (3%)
-    taxa = amount - final_amount
-    logger.info(f"Depósito: {amount} centavos, taxa: {taxa} centavos, final: {final_amount} centavos")
-
-    # Payload para API Promisse (valor original, sem taxa)
     payload = {
         "amount": amount,
         "webhook": "https://revolution-pay.onrender.com/webhook"
@@ -406,14 +388,12 @@ def create_deposit(request: Request,
                 "back_url": "/deposit"
             }, status_code=400)
 
-        # Extrai campos da resposta
         qr_base64 = data.get("qrCodeBase64", "")
         if qr_base64.startswith("data:image/png;base64,"):
             qr_base64 = qr_base64.replace("data:image/png;base64,", "")
         pix_code = data.get("copyPaste", "")
         transaction_id = data.get("id", str(uuid.uuid4()))
 
-        # Salva transação com amount (original) e final_amount (com taxa)
         trans = Transaction(
             user_id=user_id,
             transaction_id=transaction_id,
@@ -449,7 +429,6 @@ def create_deposit(request: Request,
 
 @app.post("/webhook")
 async def webhook(request: Request, db: Session = Depends(get_db)):
-    """Recebe notificações da Promisse quando o pagamento é confirmado"""
     data = await request.json()
     logger.info(f"📩 Webhook recebido: {json.dumps(data, indent=2)}")
     
@@ -558,4 +537,32 @@ def create_transfer(request: Request, dest_email: str = Form(...), amount: int =
         return templates.TemplateResponse("error.html", {
             "request": request,
             "user_logged_in": True,
-            
+            "user_email": user.email,
+            "error_message": f"Saldo insuficiente. Disponível: R$ {user.balance_available/100:.2f}",
+            "back_url": "/transfer"
+        }, status_code=400)
+    
+    dest = db.query(User).filter(User.email == dest_email).first()
+    if not dest:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": "Destinatário não encontrado.",
+            "back_url": "/transfer"
+        }, status_code=400)
+    
+    out = Transaction(
+        user_id=user_id,
+        transaction_id=f"out-{uuid.uuid4()}",
+        amount=-amount,
+        final_amount=-amount,
+        status="approved",
+        type="transfer_out"
+    )
+    inc = Transaction(
+        user_id=dest.id,
+        transaction_id=f"in-{uuid.uuid4()}",
+        amount=amount,
+        final_amount=amount,
+        status="a
