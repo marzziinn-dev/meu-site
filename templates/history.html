@@ -1,56 +1,62 @@
 {% extends "base.html" %}
+
 {% block title %}Histórico{% endblock %}
+
 {% block content %}
-<div class="card">
-    <div class="card-header bg-primary text-white">
-        <i class="bi bi-clock-history"></i> Histórico de transações
+<div class="card-modern">
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <i class="bi bi-clock-history fs-1 text-primary"></i>
+        <h2 class="fw-bold mb-0">Histórico de Transações</h2>
     </div>
-    <div class="card-body">
-        {% if transactions %}
-        <div class="table-responsive">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Tipo</th>
-                        <th>Valor</th>
-                        <th>Status</th>
-                        <th>Data</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for t in transactions %}
-                    <tr>
-                        <td>#{{ t.id }}</td>
-                        <td>
-                            {% if t.type == 'deposit' %}
-                                <span class="badge bg-success"><i class="bi bi-arrow-down"></i> Depósito</span>
-                            {% elif t.type == 'withdraw' %}
-                                <span class="badge bg-warning text-dark"><i class="bi bi-arrow-up"></i> Saque</span>
-                            {% elif t.type == 'transfer_in' %}
-                                <span class="badge bg-info"><i class="bi bi-arrow-left"></i> Transferência recebida</span>
-                            {% elif t.type == 'transfer_out' %}
-                                <span class="badge bg-secondary"><i class="bi bi-arrow-right"></i> Transferência enviada</span>
-                            {% endif %}
-                        </td>
-                        <td class="{% if t.amount > 0 %}text-success{% else %}text-danger{% endif %}">
-                            R$ {{ "%.2f"|format(t.amount|abs) }}
-                        </td>
-                        <td>
-                            <span class="badge bg-success">Confirmado</span>
-                        </td>
-                        <td>{{ t.created_at }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p class="text-muted">Nenhuma transação concluída ainda.</p>
-        {% endif %}
-        <a href="/dashboard" class="btn btn-primary mt-3">
-            <i class="bi bi-arrow-left"></i> Voltar
+    
+    {% if transactions %}
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead class="bg-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                    <th>Status</th>
+                    <th>Data</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in transactions %}
+                <tr>
+                    <td><span class="badge bg-secondary">#{{ t.id }}</span></td>
+                    <td>
+                        {% if t.type == 'deposit' %}
+                            <span class="badge badge-success"><i class="bi bi-arrow-down"></i> Depósito</span>
+                        {% elif t.type == 'withdraw' %}
+                            <span class="badge badge-warning"><i class="bi bi-arrow-up"></i> Saque</span>
+                        {% elif t.type == 'transfer_in' %}
+                            <span class="badge bg-info"><i class="bi bi-arrow-left"></i> Transferência recebida</span>
+                        {% elif t.type == 'transfer_out' %}
+                            <span class="badge bg-secondary"><i class="bi bi-arrow-right"></i> Transferência enviada</span>
+                        {% endif %}
+                    </td>
+                    <td class="fw-bold {% if t.amount > 0 %}text-success{% else %}text-danger{% endif %}">
+                        R$ {{ "%.2f"|format(t.amount|abs) }}
+                    </td>
+                    <td>
+                        <span class="badge bg-success">Confirmado</span>
+                    </td>
+                    <td>{{ t.created_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="bi bi-clock-history fs-1 text-muted"></i>
+        <h4 class="text-muted mt-3">Nenhuma transação encontrada</h4>
+        <p>Comece fazendo um depósito ou transferência</p>
+        <a href="/deposit" class="btn btn-primary-modern mt-3">
+            <i class="bi bi-qr-code"></i> Depositar agora
         </a>
     </div>
+    {% endif %}
 </div>
 {% endblock %}
