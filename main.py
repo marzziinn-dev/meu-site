@@ -161,17 +161,17 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
         }, status_code=500)
 
     # Payload IGUAL ao que você testou no "Try It"
-    # Ajuste os campos conforme o que funcionou lá
     payload = {
-        "amount": amount,  # ou str(amount) se no Try It funcionou como string
+        "amount": amount,  # amount já vem em centavos do formulário
         "webhook": "https://revolution-pay.onrender.com/webhook"
-        # Se no Try It você usou split, descomente:
+        # Se no "Try It" você usou split, descomente:
         # "split_email": "usuario@exemplo.com",
         # "split_tax": 5
     }
 
+    # ⚠️ CORREÇÃO IMPORTANTE: A documentação mostra que NÃO deve ter "Bearer "
     headers = {
-        "Authorization": f"Bearer {PROMISSE_API_KEY}",
+        "Authorization": PROMISSE_API_KEY,  # APENAS a chave, sem "Bearer "
         "Content-Type": "application/json"
     }
 
@@ -496,7 +496,7 @@ def testar_api(request: Request):
     
     url = "https://api.promisse.com.br/transactions"
     headers = {
-        "Authorization": f"Bearer {PROMISSE_API_KEY}",
+        "Authorization": PROMISSE_API_KEY,  # ⚠️ MESMA CORREÇÃO: sem "Bearer"
         "Content-Type": "application/json"
     }
     payload = {
