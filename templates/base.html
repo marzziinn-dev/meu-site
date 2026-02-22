@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Revolution Pay{% endblock %}</title>
     
-    <!-- Bootstrap 5 com tema moderno -->
+    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
@@ -21,37 +21,38 @@
 
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #000000;
             min-height: 100vh;
         }
 
-        /* Navbar moderna */
+        /* Navbar preta */
         .navbar-modern {
-            background: rgba(255, 255, 255, 0.95);
+            background: #000000;
             backdrop-filter: blur(10px);
-            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 20px rgba(255, 165, 0, 0.2);
             padding: 1rem 0;
         }
 
         .navbar-brand {
             font-weight: 700;
             font-size: 1.5rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: #FF8C00 !important;
+        }
+
+        .navbar-brand i {
+            color: #FF8C00;
         }
 
         .nav-link {
             font-weight: 500;
-            color: #4a5568;
+            color: #ffffff !important;
             margin: 0 0.5rem;
             transition: all 0.3s;
             position: relative;
         }
 
         .nav-link:hover {
-            color: #667eea;
+            color: #FF8C00 !important;
         }
 
         .nav-link::after {
@@ -62,7 +63,7 @@
             transform: translateX(-50%);
             width: 0;
             height: 2px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #FF8C00;
             transition: width 0.3s;
         }
 
@@ -70,7 +71,7 @@
             width: 80%;
         }
 
-        /* Botão do Discord */
+        /* Botão do Discord AZUL */
         .discord-btn {
             background: #5865F2;
             color: white;
@@ -96,19 +97,20 @@
             font-size: 1.2rem;
         }
 
-        /* Menu lateral moderno */
+        /* Menu lateral preto com laranja */
         .sidebar {
             position: fixed;
             top: 0;
             left: -280px;
             width: 280px;
             height: 100vh;
-            background: rgba(255, 255, 255, 0.95);
+            background: #111111;
             backdrop-filter: blur(10px);
-            box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
+            box-shadow: 2px 0 20px rgba(255, 140, 0, 0.2);
             transition: left 0.3s ease;
             z-index: 1050;
             padding: 80px 0 20px;
+            border-right: 1px solid #FF8C00;
         }
 
         .sidebar.active {
@@ -129,7 +131,7 @@
             align-items: center;
             gap: 12px;
             padding: 12px 20px;
-            color: #4a5568;
+            color: #ffffff;
             text-decoration: none;
             border-radius: 10px;
             transition: all 0.3s;
@@ -137,13 +139,18 @@
         }
 
         .sidebar-menu a:hover {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #FF8C00;
+            color: #000000;
             transform: translateX(5px);
         }
 
         .sidebar-menu a i {
             font-size: 1.2rem;
+            color: #FF8C00;
+        }
+
+        .sidebar-menu a:hover i {
+            color: #000000;
         }
 
         .menu-overlay {
@@ -152,7 +159,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.8);
             backdrop-filter: blur(3px);
             z-index: 1040;
             display: none;
@@ -162,12 +169,12 @@
             display: block;
         }
 
-        /* Botão do menu */
+        /* Botão do menu laranja */
         .menu-toggle {
             background: none;
             border: none;
             font-size: 1.8rem;
-            color: #667eea;
+            color: #FF8C00;
             cursor: pointer;
             transition: all 0.3s;
             display: flex;
@@ -176,33 +183,39 @@
             width: 45px;
             height: 45px;
             border-radius: 10px;
-            background: rgba(102, 126, 234, 0.1);
+            background: rgba(255, 140, 0, 0.1);
         }
 
         .menu-toggle:hover {
-            background: rgba(102, 126, 234, 0.2);
+            background: rgba(255, 140, 0, 0.2);
             transform: scale(1.05);
         }
 
-        /* Cards modernos */
+        /* Cards modernos com tema laranja/preto */
         .card-modern {
-            background: white;
+            background: #111111;
             border-radius: 20px;
             padding: 25px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 40px rgba(255, 140, 0, 0.1);
             transition: all 0.3s;
-            border: none;
+            border: 1px solid #FF8C00;
             height: 100%;
+            color: #ffffff;
         }
 
         .card-modern:hover {
             transform: translateY(-5px);
-            box-shadow: 0 15px 50px rgba(102, 126, 234, 0.2);
+            box-shadow: 0 15px 50px rgba(255, 140, 0, 0.3);
         }
 
         .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #FF8C00;
+            color: #000000;
+            border: none;
+        }
+
+        .gradient-bg h2, .gradient-bg p {
+            color: #000000;
         }
 
         /* Main content */
@@ -227,192 +240,12 @@
         }
 
         .btn-primary-modern {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            background: #FF8C00;
+            color: #000000;
+            box-shadow: 0 4px 15px rgba(255, 140, 0, 0.4);
         }
 
         .btn-primary-modern:hover {
+            background: #e67e00;
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
-            color: white;
-        }
-
-        .btn-outline-modern {
-            background: transparent;
-            border: 2px solid #667eea;
-            color: #667eea;
-        }
-
-        .btn-outline-modern:hover {
-            background: #667eea;
-            color: white;
-        }
-
-        /* Badges */
-        .badge-modern {
-            padding: 5px 12px;
-            border-radius: 50px;
-            font-weight: 500;
-            font-size: 0.8rem;
-        }
-
-        .badge-success {
-            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
-            color: #1a5a3a;
-        }
-
-        .badge-warning {
-            background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
-            color: #6b3e26;
-        }
-
-        /* Footer */
-        .footer {
-            background: white;
-            padding: 20px 0;
-            margin-top: 50px;
-            box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.05);
-        }
-    </style>
-    {% block extra_css %}{% endblock %}
-</head>
-<body>
-    <!-- Overlay do menu -->
-    <div class="menu-overlay" id="menuOverlay" onclick="toggleMenu()"></div>
-
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="text-center mb-4 px-4">
-            <h3 class="gradient-text">Revolution Pay</h3>
-            <p class="text-muted small">Gateway de Pagamentos</p>
-        </div>
-        
-        <ul class="sidebar-menu">
-            <li>
-                <a href="/dashboard">
-                    <i class="bi bi-speedometer2"></i>
-                    Dashboard
-                </a>
-            </li>
-            <li>
-                <a href="/deposit">
-                    <i class="bi bi-qr-code"></i>
-                    Depositar
-                </a>
-            </li>
-            <li>
-                <a href="/withdraw">
-                    <i class="bi bi-cash"></i>
-                    Sacar
-                </a>
-            </li>
-            <li>
-                <a href="/transfer">
-                    <i class="bi bi-send"></i>
-                    Transferir
-                </a>
-            </li>
-            <li>
-                <a href="/history">
-                    <i class="bi bi-clock-history"></i>
-                    Histórico
-                </a>
-            </li>
-            <li>
-                <a href="/settings">
-                    <i class="bi bi-gear"></i>
-                    Configurações
-                </a>
-            </li>
-            <li class="mt-4">
-                <a href="/logout" style="color: #dc3545;">
-                    <i class="bi bi-box-arrow-right"></i>
-                    Sair
-                </a>
-            </li>
-        </ul>
-    </div>
-
-    <!-- Main Content -->
-    <div class="main-content" id="mainContent">
-        <!-- Navbar -->
-        <nav class="navbar-modern fixed-top">
-            <div class="container-fluid px-4">
-                <div class="d-flex align-items-center gap-3">
-                    <button class="menu-toggle" onclick="toggleMenu()">
-                        <i class="bi bi-list"></i>
-                    </button>
-                    <a class="navbar-brand" href="/dashboard">
-                        <i class="bi bi-bolt"></i> Revolution Pay
-                    </a>
-                </div>
-
-                <div class="d-flex align-items-center gap-3">
-                    <!-- Botão do Discord (Contato Suporte) -->
-                    <a href="https://discord.gg/xGNuRUjdvJ" target="_blank" class="discord-btn">
-                        <i class="bi bi-discord"></i>
-                        <span class="d-none d-md-inline">Contato Suporte</span>
-                    </a>
-                    
-                    <!-- Dropdown do usuário -->
-                    <div class="dropdown">
-                        <button class="btn btn-light dropdown-toggle d-flex align-items-center gap-2" type="button" id="userDropdown" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i>
-                            <span class="d-none d-md-inline">{{ user_email }}</span>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="/settings"><i class="bi bi-gear"></i> Configurações</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="/logout"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </nav>
-
-        <!-- Conteúdo da página -->
-        <div class="container mt-5 pt-4">
-            {% block content %}{% endblock %}
-        </div>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <div class="container text-center">
-                <p class="text-muted mb-0">
-                    © 2026 Revolution Pay. Todos os direitos reservados.
-                </p>
-                <p class="text-muted small mb-0">
-                    <i class="bi bi-shield-check"></i> Pagamentos 100% seguros
-                </p>
-            </div>
-        </footer>
-    </div>
-
-    <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <script>
-        function toggleMenu() {
-            document.getElementById('sidebar').classList.toggle('active');
-            document.getElementById('mainContent').classList.toggle('shifted');
-            document.getElementById('menuOverlay').classList.toggle('active');
-        }
-
-        // Fecha o menu se clicar fora em telas pequenas
-        document.getElementById('menuOverlay').addEventListener('click', function() {
-            toggleMenu();
-        });
-
-        // Ajusta o layout quando a janela for redimensionada
-        window.addEventListener('resize', function() {
-            if (window.innerWidth > 992) {
-                document.getElementById('sidebar').classList.remove('active');
-                document.getElementById('mainContent').classList.remove('shifted');
-                document.getElementById('menuOverlay').classList.remove('active');
-            }
-        });
-    </script>
-    {% block extra_js %}{% endblock %}
-</body>
-</html>
+            box-shadow: 0 6px 20px rgba(255, 140, 0, 
