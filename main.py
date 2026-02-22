@@ -266,8 +266,13 @@ def root(request: Request):
     return templates.TemplateResponse("login.html", {"request": request, "user_logged_in": False})
 
 @app.get("/register", response_class=HTMLResponse)
-def register_form(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request, "user_logged_in": False})
+def register_form(request: Request, erro: str = None, sucesso: str = None):
+    return templates.TemplateResponse("register.html", {
+        "request": request,
+        "user_logged_in": False,
+        "erro": erro,
+        "sucesso": sucesso
+    })
 
 @app.post("/register")
 def register(
@@ -280,44 +285,86 @@ def register(
     logger.info(f"Novo registro: {email}")
     
     # ===== VALIDAÇÃO DO NOME COMPLETO =====
-    # Remove espaços extras no início e fim
     nome_completo = nome_completo.strip()
-    
-    # Verifica se tem pelo menos duas partes (nome e sobrenome)
     partes = nome_completo.split()
-    if len(partes) < 2:
-        raise HTTPException(400, "Nome completo deve conter pelo menos nome e sobrenome (ex: João Silva)")
     
-    # Verifica se contém apenas letras e espaços
+    if len(partes) < 2:
+        return templates.TemplateResponse("register.html", {
+            "request": Request,
+            "user_logged_in": False,
+            "erro": "Nome completo deve conter pelo menos nome e sobrenome (ex: João Silva)",
+            "nome_completo": nome_completo,
+            "cpf": cpf,
+            "email": email
+        })
+    
     for parte in partes:
         if not parte.isalpha():
-            raise HTTPException(400, "Nome deve conter apenas letras (sem números ou caracteres especiais)")
+            return templates.TemplateResponse("register.html", {
+                "request": Request,
+                "user_logged_in": False,
+                "erro": "Nome deve conter apenas letras (sem números ou caracteres especiais)",
+                "nome_completo": nome_completo,
+                "cpf": cpf,
+                "email": email
+            })
     
-    # Verifica o tamanho mínimo de cada parte (pelo menos 2 letras)
     for parte in partes:
         if len(parte) < 2:
-            raise HTTPException(400, "Cada parte do nome deve ter pelo menos 2 letras")
+            return templates.TemplateResponse("register.html", {
+                "request": Request,
+                "user_logged_in": False,
+                "erro": "Cada parte do nome deve ter pelo menos 2 letras",
+                "nome_completo": nome_completo,
+                "cpf": cpf,
+                "email": email
+            })
     
     # ===== VALIDAÇÃO DO CPF =====
-    # Remove caracteres especiais (.,-)
     cpf_limpo = re.sub(r'[^0-9]', '', cpf)
     
-    # Verifica se tem 11 dígitos
     if not cpf_limpo.isdigit() or len(cpf_limpo) != 11:
-        raise HTTPException(400, "CPF deve conter 11 dígitos numéricos (ex: 123.456.789-00)")
+        return templates.TemplateResponse("register.html", {
+            "request": Request,
+            "user_logged_in": False,
+            "erro": "CPF deve conter 11 dígitos numéricos (ex: 123.456.789-00)",
+            "nome_completo": nome_completo,
+            "cpf": cpf,
+            "email": email
+        })
     
-    # Validação matemática do CPF
     if not validar_cpf(cpf_limpo):
-        raise HTTPException(400, "CPF inválido. Digite um CPF válido.")
+        return templates.TemplateResponse("register.html", {
+            "request": Request,
+            "user_logged_in": False,
+            "erro": "CPF inválido. Digite um CPF válido.",
+            "nome_completo": nome_completo,
+            "cpf": cpf,
+            "email": email
+        })
     
-    # ===== VALIDAÇÕES EXISTENTES =====
+    # ===== VALIDAÇÕES DE DUPLICIDADE =====
     if db.query(User).filter(User.email == email).first():
-        raise HTTPException(400, "Email já existe")
+        return templates.TemplateResponse("register.html", {
+            "request": Request,
+            "user_logged_in": False,
+            "erro": "Email já cadastrado. Tente outro email.",
+            "nome_completo": nome_completo,
+            "cpf": cpf,
+            "email": email
+        })
     
     if db.query(User).filter(User.cpf == cpf_limpo).first():
-        raise HTTPException(400, "CPF já cadastrado")
+        return templates.TemplateResponse("register.html", {
+            "request": Request,
+            "user_logged_in": False,
+            "erro": "CPF já cadastrado em outra conta.",
+            "nome_completo": nome_completo,
+            "cpf": cpf,
+            "email": email
+        })
     
-    # Cria usuário com CPF limpo (apenas números)
+    # ===== CRIAÇÃO DO USUÁRIO =====
     user = User(
         nome_completo=nome_completo,
         cpf=cpf_limpo,
