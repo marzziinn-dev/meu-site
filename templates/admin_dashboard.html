@@ -3,67 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Revolution Pay</title>
+    <title>Admin Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <style>
         body {
             background: #f4f6f9;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .sidebar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: white;
             padding: 20px;
         }
-        .sidebar a {
-            color: rgba(255,255,255,0.8);
-            text-decoration: none;
-            padding: 10px;
-            display: block;
-            border-radius: 10px;
-            margin-bottom: 5px;
-            transition: all 0.3s;
-        }
-        .sidebar a:hover {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            transform: translateX(5px);
-        }
-        .sidebar .active {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            font-weight: 600;
-        }
-        .main-content {
-            padding: 30px;
-        }
-        .stats-card {
+        .card-stats {
             background: white;
             border-radius: 15px;
             padding: 20px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
             margin-bottom: 20px;
-            transition: transform 0.2s;
         }
-        .stats-card:hover {
-            transform: translateY(-5px);
-        }
-        .stats-icon {
-            width: 50px;
-            height: 50px;
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            margin-bottom: 15px;
-        }
-        .bg-gradient-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .bg-gradient-success { background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); color: white; }
-        .bg-gradient-info { background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%); color: white; }
-        .bg-gradient-warning { background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%); color: white; }
         .table-admin {
             background: white;
             border-radius: 15px;
@@ -71,211 +25,153 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
         .table-admin thead {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #343a40;
             color: white;
-        }
-        .btn-admin-action {
-            padding: 5px 10px;
-            font-size: 12px;
-            border-radius: 5px;
-            margin: 0 2px;
         }
     </style>
 </head>
 <body>
     <div class="container-fluid">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2><i class="bi bi-shield-lock"></i> Painel Administrativo</h2>
+            <a href="/admin/logout" class="btn btn-outline-danger">
+                <i class="bi bi-box-arrow-right"></i> Sair
+            </a>
+        </div>
+        
+        <!-- Stats Cards -->
         <div class="row">
-            <!-- Sidebar -->
-            <div class="col-md-2 sidebar">
-                <h3 class="text-center mb-4 mt-2">
-                    <i class="bi bi-shield-lock"></i> Admin
-                </h3>
-                <hr style="background: rgba(255,255,255,0.2);">
-                
-                <a href="/admin-dashboard-7h4g9w" class="active">
-                    <i class="bi bi-speedometer2"></i> Dashboard
-                </a>
-                <a href="#usuarios" data-bs-toggle="collapse">
-                    <i class="bi bi-people"></i> Usuários
-                </a>
-                <div class="collapse" id="usuarios">
-                    <a href="#" style="padding-left: 40px;">Listar todos</a>
-                    <a href="#" style="padding-left: 40px;">Adicionar saldo</a>
+            <div class="col-md-3">
+                <div class="card-stats">
+                    <h5>Total Usuários</h5>
+                    <h2>{{ stats.total_usuarios }}</h2>
                 </div>
-                <a href="#transacoes" data-bs-toggle="collapse">
-                    <i class="bi bi-clock-history"></i> Transações
-                </a>
-                <div class="collapse" id="transacoes">
-                    <a href="#" style="padding-left: 40px;">Todas transações</a>
-                    <a href="#" style="padding-left: 40px;">Pendentes</a>
-                </div>
-                <a href="/admin/recuperar-transacoes" target="_blank">
-                    <i class="bi bi-arrow-repeat"></i> Recuperar transações
-                </a>
-                <hr style="background: rgba(255,255,255,0.2);">
-                <a href="/admin/logout">
-                    <i class="bi bi-box-arrow-right"></i> Sair
-                </a>
             </div>
-            
-            <!-- Main content -->
-            <div class="col-md-10 main-content">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h2><i class="bi bi-shield-lock"></i> Painel de Controle Admin</h2>
-                    <span class="badge bg-danger">Modo Desenvolvedor</span>
+            <div class="col-md-3">
+                <div class="card-stats">
+                    <h5>Saldo Total</h5>
+                    <h2>R$ {{ "%.2f"|format(stats.saldo_total) }}</h2>
                 </div>
-                
-                <!-- Cards de estatísticas -->
-                <div class="row">
-                    <div class="col-md-3">
-                        <div class="stats-card">
-                            <div class="stats-icon bg-gradient-primary">
-                                <i class="bi bi-people"></i>
-                            </div>
-                            <h5>Total de Usuários</h5>
-                            <h3>{{ stats.total_usuarios }}</h3>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="stats-card">
-                            <div class="stats-icon bg-gradient-success">
-                                <i class="bi bi-cash"></i>
-                            </div>
-                            <h5>Saldo Disponível</h5>
-                            <h3>R$ {{ "%.2f"|format(stats.saldo_total) }}</h3>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="stats-card">
-                            <div class="stats-icon bg-gradient-info">
-                                <i class="bi bi-hourglass-split"></i>
-                            </div>
-                            <h5>Saldo Pendente</h5>
-                            <h3>R$ {{ "%.2f"|format(stats.saldo_pendente) }}</h3>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="stats-card">
-                            <div class="stats-icon bg-gradient-warning">
-                                <i class="bi bi-clock-history"></i>
-                            </div>
-                            <h5>Total Transações</h5>
-                            <h3>{{ stats.total_transacoes }}</h3>
-                        </div>
-                    </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card-stats">
+                    <h5>Saldo Pendente</h5>
+                    <h2>R$ {{ "%.2f"|format(stats.saldo_pendente) }}</h2>
                 </div>
-                
-                <!-- Formulário para adicionar/remover saldo -->
-                <div class="row mt-4">
-                    <div class="col-md-6">
-                        <div class="stats-card">
-                            <h5><i class="bi bi-plus-circle text-success"></i> Adicionar Saldo</h5>
-                            <form method="post" action="/admin/adicionar-saldo" class="row g-3">
-                                <div class="col-md-6">
-                                    <input type="email" class="form-control" name="email" placeholder="Email do usuário" required>
-                                </div>
-                                <div class="col-md-4">
-                                    <input type="number" class="form-control" name="valor" placeholder="Valor em centavos" required>
-                                </div>
-                                <div class="col-md-2">
-                                    <button type="submit" class="btn btn-success w-100">Adicionar</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="stats-card">
-                            <h5><i class="bi bi-dash-circle text-danger"></i> Remover Saldo</h5>
-                            <form method="post" action="/admin/remover-saldo" class="row g-3">
-                                <div class="col-md-6">
-                                    <input type="email" class="form-control" name="email" placeholder="Email do usuário" required>
-                                </div>
-                                <div class="col-md-4">
-                                    <input type="number" class="form-control" name="valor" placeholder="Valor em centavos" required>
-                                </div>
-                                <div class="col-md-2">
-                                    <button type="submit" class="btn btn-danger w-100">Remover</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Lista de usuários -->
-                <div class="stats-card mt-4">
-                    <h5><i class="bi bi-people"></i> Usuários</h5>
-                    <div class="table-responsive">
-                        <table class="table table-hover table-admin">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Email</th>
-                                    <th>Saldo Disponível</th>
-                                    <th>Saldo Pendente</th>
-                                    <th>Chave Pix</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for user in usuarios %}
-                                <tr>
-                                    <td>{{ user.id }}</td>
-                                    <td>{{ user.email }}</td>
-                                    <td>R$ {{ "%.2f"|format(user.balance_available/100) }}</td>
-                                    <td>R$ {{ "%.2f"|format(user.balance_pending/100) }}</td>
-                                    <td>{{ user.pix_key or "Não definida" }}</td>
-                                    <td>
-                                        <a href="/admin/usuarios/{{ user.id }}" class="btn btn-sm btn-info btn-admin-action">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                
-                <!-- Últimas transações -->
-                <div class="stats-card mt-4">
-                    <h5><i class="bi bi-clock-history"></i> Últimas 50 transações</h5>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-admin">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Usuário</th>
-                                    <th>Tipo</th>
-                                    <th>Valor</th>
-                                    <th>Status</th>
-                                    <th>Data</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for t in transacoes %}
-                                <tr>
-                                    <td>{{ t.id }}</td>
-                                    <td>{{ t.user_id }}</td>
-                                    <td>{{ t.type }}</td>
-                                    <td class="{% if t.amount > 0 %}text-success{% else %}text-danger{% endif %}">
-                                        R$ {{ "%.2f"|format(t.final_amount/100) }}
-                                    </td>
-                                    <td>
-                                        <span class="badge {% if t.status == 'approved' %}bg-success{% else %}bg-warning{% endif %}">
-                                            {{ t.status }}
-                                        </span>
-                                    </td>
-                                    <td>{{ t.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card-stats">
+                    <h5>Total Transações</h5>
+                    <h2>{{ stats.total_transacoes }}</h2>
                 </div>
             </div>
         </div>
+        
+        <!-- Ações Rápidas -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card-stats">
+                    <h5><i class="bi bi-plus-circle text-success"></i> Adicionar Saldo</h5>
+                    <form method="post" action="/admin/adicionar-saldo" class="row g-3">
+                        <div class="col-md-5">
+                            <input type="email" class="form-control" name="email" placeholder="Email" required>
+                        </div>
+                        <div class="col-md-4">
+                            <input type="number" class="form-control" name="valor" placeholder="Valor (centavos)" required>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-success w-100">Adicionar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card-stats">
+                    <h5><i class="bi bi-dash-circle text-danger"></i> Remover Saldo</h5>
+                    <form method="post" action="/admin/remover-saldo" class="row g-3">
+                        <div class="col-md-5">
+                            <input type="email" class="form-control" name="email" placeholder="Email" required>
+                        </div>
+                        <div class="col-md-4">
+                            <input type="number" class="form-control" name="valor" placeholder="Valor (centavos)" required>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-danger w-100">Remover</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Lista de Usuários -->
+        <div class="card-stats mt-4">
+            <h5><i class="bi bi-people"></i> Usuários</h5>
+            <div class="table-responsive">
+                <table class="table table-hover table-admin">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Email</th>
+                            <th>Saldo</th>
+                            <th>Pendente</th>
+                            <th>Chave Pix</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in usuarios %}
+                        <tr>
+                            <td>{{ user.id }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>R$ {{ "%.2f"|format(user.balance_available/100) }}</td>
+                            <td>R$ {{ "%.2f"|format(user.balance_pending/100) }}</td>
+                            <td>{{ user.pix_key or "-" }}</td>
+                            <td>
+                                <a href="/admin/usuarios/{{ user.id }}" class="btn btn-sm btn-info">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Transações Recentes -->
+        <div class="card-stats mt-4">
+            <h5><i class="bi bi-clock-history"></i> Últimas Transações</h5>
+            <div class="table-responsive">
+                <table class="table table-sm table-admin">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Usuário</th>
+                            <th>Tipo</th>
+                            <th>Valor</th>
+                            <th>Status</th>
+                            <th>Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for t in transacoes %}
+                        <tr>
+                            <td>{{ t.id }}</td>
+                            <td>{{ t.user_id }}</td>
+                            <td>{{ t.type }}</td>
+                            <td>R$ {{ "%.2f"|format(t.final_amount/100) }}</td>
+                            <td>
+                                <span class="badge {% if t.status == 'approved' %}bg-success{% else %}bg-warning{% endif %}">
+                                    {{ t.status }}
+                                </span>
+                            </td>
+                            <td>{{ t.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
