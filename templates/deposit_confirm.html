@@ -3,21 +3,46 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-6">
-        <div class="card text-center">
-            <div class="card-header">Pague o depósito</div>
-            <div class="card-body">
-                <h5>Valor: R$ {{ "%.2f"|format(amount) }}</h5>
-                <img src="data:image/png;base64,{{ qr_base64 }}" class="img-fluid mb-3" style="max-width: 200px;">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <i class="bi bi-check-circle"></i> Pagamento gerado
+            </div>
+            <div class="card-body text-center">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    Após o pagamento, o saldo será atualizado em instantes.
+                    <br>
+                    <small>Taxa de 3% já descontada.</small>
+                </div>
+                
+                <h5 class="mb-3">Valor a pagar: <strong class="text-success">R$ {{ "%.2f"|format(amount) }}</strong></h5>
+                
+                <div class="my-4">
+                    <img src="data:image/png;base64,{{ qr_base64 }}" class="img-fluid border p-2" style="max-width: 250px;">
+                </div>
+                
                 <div class="mb-3">
-                    <label class="form-label">Código Pix</label>
+                    <label class="form-label fw-bold">Código Pix (copia e cola)</label>
                     <div class="input-group">
                         <input type="text" class="form-control" value="{{ pix_code }}" id="pixCode" readonly>
-                        <button class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('pixCode').value); alert('Copiado!')">Copiar</button>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyPix()">
+                            <i class="bi bi-files"></i>
+                        </button>
                     </div>
                 </div>
-                <a href="/dashboard" class="btn btn-primary">Voltar</a>
+                
+                <a href="/dashboard" class="btn btn-primary">
+                    <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
+                </a>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+function copyPix() {
+    navigator.clipboard.writeText(document.getElementById('pixCode').value);
+    alert('Código Pix copiado!');
+}
+</script>
 {% endblock %}
