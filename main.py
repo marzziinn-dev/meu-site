@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -130,6 +130,28 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "available": user.balance_available / 100
     })
 
+@app.get("/api/verificar-transacao/{transaction_id}")
+def verificar_transacao(transaction_id: str, request: Request, db: Session = Depends(get_db)):
+    """API para verificar status de uma transação (usado pelo frontend)"""
+    try:
+        user_id = get_current_user(request)
+    except:
+        return JSONResponse({"erro": "Não autenticado"}, status_code=401)
+    
+    trans = db.query(Transaction).filter(
+        Transaction.transaction_id == transaction_id,
+        Transaction.user_id == user_id
+    ).first()
+    
+    if not trans:
+        return JSONResponse({"erro": "Transação não encontrada"}, status_code=404)
+    
+    return JSONResponse({
+        "status": trans.status,
+        "amount": trans.amount,
+        "final_amount": trans.final_amount
+    })
+
 @app.get("/deposit", response_class=HTMLResponse)
 def deposit_form(request: Request, db: Session = Depends(get_db)):
     try:
@@ -220,13 +242,12 @@ def create_deposit(request: Request,
         trans = Transaction(
             user_id=user_id,
             transaction_id=transaction_id,
-            amount=amount,  # valor original
-            final_amount=final_amount,  # valor após taxa
+            amount=amount,
+            final_amount=final_amount,
             status="pending",
             type="deposit"
         )
         db.add(trans)
-        # Saldo pendente é o valor final (já com taxa descontada)
         user.balance_pending += final_amount
         db.commit()
 
@@ -236,7 +257,8 @@ def create_deposit(request: Request,
             "user_email": user.email,
             "qr_base64": qr_base64,
             "pix_code": pix_code,
-            "amount": amount / 100  # mostra o valor original
+            "amount": amount / 100,
+            "transaction_id": transaction_id
         })
 
     except Exception as e:
@@ -260,13 +282,10 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     status = data.get("status")
     
     if status == "paid":
-        # Busca a transação pelo ID externo
         trans = db.query(Transaction).filter(Transaction.transaction_id == trans_id).first()
         if trans and trans.status == "pending":
-            # Move de pendente para disponível (já com taxa descontada)
             user = db.query(User).filter(User.id == trans.user_id).first()
             if user:
-                # Subtrai do pending e adiciona ao available (final_amount)
                 user.balance_pending -= trans.final_amount
                 user.balance_available += trans.final_amount
                 trans.status = "approved"
@@ -279,5 +298,200 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
     
     return {"message": "ok"}
 
-# As demais rotas (withdraw, transfer, history, settings, logout) permanecem iguais
-# ... (mantenha as rotas que você já tinha funcionando)
+@app.get("/withdraw", response_class=HTMLResponse)
+def withdraw_form(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("withdraw.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "pix_key": user.pix_key,
+        "available": user.balance_available / 100
+    })
+
+@app.post("/withdraw")
+def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Form(None), db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if user.balance_available < amount:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": f"Saldo insuficiente. Disponível: R$ {user.balance_available/100:.2f}",
+            "back_url": "/withdraw"
+        }, status_code=400)
+    
+    key = pix_key or user.pix_key
+    if not key:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": "Chave Pix obrigatória.",
+            "back_url": "/withdraw"
+        }, status_code=400)
+    
+    if pix_key:
+        user.pix_key = pix_key
+    
+    # Cria transação de saque
+    trans = Transaction(
+        user_id=user_id,
+        transaction_id=f"withdraw-{uuid.uuid4()}",
+        amount=-amount,
+        final_amount=-amount,  # saque não tem taxa (por enquanto)
+        status="approved",
+        type="withdraw"
+    )
+    db.add(trans)
+    user.balance_available -= amount
+    db.commit()
+    
+    return RedirectResponse("/dashboard", 302)
+
+@app.get("/transfer", response_class=HTMLResponse)
+def transfer_form(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("transfer.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "available": user.balance_available / 100
+    })
+
+@app.post("/transfer")
+def create_transfer(request: Request, dest_email: str = Form(...), amount: int = Form(...), db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if user.balance_available < amount:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": f"Saldo insuficiente. Disponível: R$ {user.balance_available/100:.2f}",
+            "back_url": "/transfer"
+        }, status_code=400)
+    
+    dest = db.query(User).filter(User.email == dest_email).first()
+    if not dest:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": "Destinatário não encontrado.",
+            "back_url": "/transfer"
+        }, status_code=400)
+    
+    # Transação de saída (quem transfere)
+    out = Transaction(
+        user_id=user_id,
+        transaction_id=f"out-{uuid.uuid4()}",
+        amount=-amount,
+        final_amount=-amount,
+        status="approved",
+        type="transfer_out"
+    )
+    # Transação de entrada (quem recebe)
+    inc = Transaction(
+        user_id=dest.id,
+        transaction_id=f"in-{uuid.uuid4()}",
+        amount=amount,
+        final_amount=amount,
+        status="approved",
+        type="transfer_in"
+    )
+    
+    user.balance_available -= amount
+    dest.balance_available += amount
+    
+    db.add_all([out, inc])
+    db.commit()
+    
+    return RedirectResponse("/dashboard", 302)
+
+@app.get("/history", response_class=HTMLResponse)
+def history(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    try:
+        trans = db.query(Transaction).filter(
+            Transaction.user_id == user_id,
+            Transaction.status == "approved"  # só mostra as confirmadas
+        ).order_by(Transaction.id.desc()).all()
+        
+        transactions = []
+        for t in trans:
+            amount = t.final_amount if t.final_amount != 0 else t.amount
+            transactions.append({
+                "id": t.id,
+                "type": t.type,
+                "amount": amount / 100,
+                "status": t.status,
+                "created_at": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else ""
+            })
+        return templates.TemplateResponse("history.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "transactions": transactions
+        })
+    except Exception as e:
+        logger.error(f"Erro no histórico: {str(e)}", exc_info=True)
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": f"Erro interno no histórico: {str(e)}",
+            "back_url": "/dashboard"
+        }, status_code=500)
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_form(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("settings.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "user": user
+    })
+
+@app.post("/settings")
+def update_settings(request: Request, pix_key: str = Form(...), db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    user.pix_key = pix_key
+    db.commit()
+    return RedirectResponse("/settings", 302)
+
+@app.get("/logout")
+def logout():
+    response = RedirectResponse("/", 302)
+    response.delete_cookie("access_token")
+    return response
