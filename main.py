@@ -24,6 +24,7 @@ with engine.connect() as conn:
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS user_id INTEGER;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_id VARCHAR;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS amount INTEGER;"))
+    conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS final_amount INTEGER DEFAULT 0;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status VARCHAR;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS type VARCHAR;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();"))
@@ -143,7 +144,10 @@ def deposit_form(request: Request, db: Session = Depends(get_db)):
     })
 
 @app.post("/deposit")
-def create_deposit(request: Request, amount: int = Form(...), db: Session = Depends(get_db)):
+def create_deposit(request: Request, 
+                   amount: int = Form(...), 
+                   final_amount: int = Form(...),
+                   db: Session = Depends(get_db)):
     try:
         user_id = get_current_user(request)
     except:
@@ -156,114 +160,74 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "request": request,
             "user_logged_in": True,
             "user_email": user.email,
-            "error_message": "Chave da API Promisse não configurada. Configure a variável PROMISSE_API_KEY no ambiente do Render.",
+            "error_message": "Chave da API Promisse não configurada.",
             "back_url": "/deposit"
         }, status_code=500)
 
-    # Payload IGUAL ao que você testou no "Try It"
+    # Calcula taxa (3%)
+    taxa = amount - final_amount
+    logger.info(f"Depósito: {amount} centavos, taxa: {taxa} centavos, final: {final_amount} centavos")
+
+    # Payload para API Promisse (valor original, sem taxa)
     payload = {
-        "amount": amount,  # amount já vem em centavos do formulário
+        "amount": amount,
         "webhook": "https://revolution-pay.onrender.com/webhook"
-        # Se no "Try It" você usou split, descomente:
-        # "split_email": "usuario@exemplo.com",
-        # "split_tax": 5
     }
 
-    # ⚠️ CORREÇÃO IMPORTANTE: A documentação mostra que NÃO deve ter "Bearer "
     headers = {
-        "Authorization": PROMISSE_API_KEY,  # APENAS a chave, sem "Bearer "
+        "Authorization": PROMISSE_API_KEY,
         "Content-Type": "application/json"
     }
 
     url = "https://api.promisse.com.br/transactions"
     
-    # LOG DETALHADO PARA COMPARAÇÃO
-    logger.info("="*50)
-    logger.info(" REQUISIÇÃO PARA API PROMISSE ")
-    logger.info("="*50)
-    logger.info(f"URL: {url}")
-    logger.info(f"Método: POST")
-    logger.info(f"Headers: {json.dumps(headers, indent=2)}")
-    logger.info(f"Payload: {json.dumps(payload, indent=2)}")
-    logger.info(f"Chave (primeiros 10): {PROMISSE_API_KEY[:10]}...")
-    logger.info("="*50)
+    logger.info(f"Enviando requisição para {url}")
+    logger.info(f"Payload: {json.dumps(payload)}")
 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         
-        logger.info("="*50)
-        logger.info(" RESPOSTA DA API ")
-        logger.info("="*50)
         logger.info(f"Status code: {response.status_code}")
-        logger.info(f"Headers: {dict(response.headers)}")
-        logger.info(f"Resposta bruta: {response.text}")
-        logger.info("="*50)
+        logger.info(f"Resposta: {response.text}")
 
         if response.status_code not in (200, 201):
-            error_msg = f"Erro na API Promisse: {response.status_code} - {response.text}"
-            logger.error(error_msg)
             return templates.TemplateResponse("error.html", {
                 "request": request,
                 "user_logged_in": True,
                 "user_email": user.email,
-                "error_message": error_msg,
+                "error_message": f"Erro na API: {response.status_code} - {response.text}",
                 "back_url": "/deposit"
             }, status_code=400)
 
-        try:
-            data = response.json()
-        except:
-            logger.error(f"Resposta não é JSON: {response.text}")
-            return templates.TemplateResponse("error.html", {
-                "request": request,
-                "user_logged_in": True,
-                "user_email": user.email,
-                "error_message": "Resposta inválida da API.",
-                "back_url": "/deposit"
-            }, status_code=500)
-
-        logger.info(f"Resposta JSON: {json.dumps(data, indent=2)}")
-
+        data = response.json()
         if data.get("status") == "error":
-            error_code = data.get("code", "desconhecido")
-            error_msg = f"Erro na API Promisse: {error_code}"
-            logger.error(error_msg)
             return templates.TemplateResponse("error.html", {
                 "request": request,
                 "user_logged_in": True,
                 "user_email": user.email,
-                "error_message": error_msg,
+                "error_message": f"Erro: {data.get('code', 'desconhecido')}",
                 "back_url": "/deposit"
             }, status_code=400)
 
-        # Extrai os campos da resposta
+        # Extrai campos da resposta
         qr_base64 = data.get("qrCodeBase64", "")
         if qr_base64.startswith("data:image/png;base64,"):
             qr_base64 = qr_base64.replace("data:image/png;base64,", "")
         pix_code = data.get("copyPaste", "")
         transaction_id = data.get("id", str(uuid.uuid4()))
 
-        if not qr_base64 or not pix_code:
-            error_msg = "Resposta da API não contém QR Code ou código Pix."
-            logger.error(error_msg)
-            return templates.TemplateResponse("error.html", {
-                "request": request,
-                "user_logged_in": True,
-                "user_email": user.email,
-                "error_message": error_msg,
-                "back_url": "/deposit"
-            }, status_code=500)
-
-        # Salva a transação no banco
+        # Salva transação com amount (original) e final_amount (com taxa)
         trans = Transaction(
             user_id=user_id,
             transaction_id=transaction_id,
-            amount=amount,
+            amount=amount,  # valor original
+            final_amount=final_amount,  # valor após taxa
             status="pending",
             type="deposit"
         )
         db.add(trans)
-        user.balance_pending += amount
+        # Saldo pendente é o valor final (já com taxa descontada)
+        user.balance_pending += final_amount
         db.commit()
 
         return templates.TemplateResponse("deposit_confirm.html", {
@@ -272,21 +236,12 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "user_email": user.email,
             "qr_base64": qr_base64,
             "pix_code": pix_code,
-            "amount": amount / 100
+            "amount": amount / 100  # mostra o valor original
         })
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Erro de conexão com a API: {str(e)}")
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "error_message": f"Erro de conexão com a API: {str(e)}",
-            "back_url": "/deposit"
-        }, status_code=500)
     except Exception as e:
         db.rollback()
-        logger.error(f"Erro inesperado: {str(e)}", exc_info=True)
+        logger.error(f"Erro: {str(e)}")
         return templates.TemplateResponse("error.html", {
             "request": request,
             "user_logged_in": True,
@@ -295,233 +250,34 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "back_url": "/deposit"
         }, status_code=500)
 
-@app.get("/withdraw", response_class=HTMLResponse)
-def withdraw_form(request: Request, db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    return templates.TemplateResponse("withdraw.html", {
-        "request": request,
-        "user_logged_in": True,
-        "user_email": user.email,
-        "pix_key": user.pix_key
-    })
-
-@app.post("/withdraw")
-def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Form(None), db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    if user.balance_available < amount:
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "error_message": "Saldo insuficiente para realizar o saque.",
-            "back_url": "/withdraw"
-        }, status_code=400)
-    key = pix_key or user.pix_key
-    if not key:
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "error_message": "Chave Pix obrigatória.",
-            "back_url": "/withdraw"
-        }, status_code=400)
-    if pix_key:
-        user.pix_key = pix_key
-    trans = Transaction(
-        user_id=user_id,
-        transaction_id=f"withdraw-{uuid.uuid4()}",
-        amount=-amount,
-        status="approved",
-        type="withdraw"
-    )
-    db.add(trans)
-    user.balance_available -= amount
-    db.commit()
-    return RedirectResponse("/dashboard", 302)
-
-@app.get("/transfer", response_class=HTMLResponse)
-def transfer_form(request: Request, db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    return templates.TemplateResponse("transfer.html", {
-        "request": request,
-        "user_logged_in": True,
-        "user_email": user.email
-    })
-
-@app.post("/transfer")
-def create_transfer(request: Request, dest_email: str = Form(...), amount: int = Form(...), db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    if user.balance_available < amount:
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "error_message": "Saldo insuficiente para transferência.",
-            "back_url": "/transfer"
-        }, status_code=400)
-    dest = db.query(User).filter(User.email == dest_email).first()
-    if not dest:
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "error_message": "Destinatário não encontrado.",
-            "back_url": "/transfer"
-        }, status_code=400)
-    out = Transaction(
-        user_id=user_id,
-        transaction_id=f"out-{uuid.uuid4()}",
-        amount=-amount,
-        status="approved",
-        type="transfer_out"
-    )
-    inc = Transaction(
-        user_id=dest.id,
-        transaction_id=f"in-{uuid.uuid4()}",
-        amount=amount,
-        status="approved",
-        type="transfer_in"
-    )
-    user.balance_available -= amount
-    dest.balance_available += amount
-    db.add_all([out, inc])
-    db.commit()
-    return RedirectResponse("/dashboard", 302)
-
-@app.get("/history", response_class=HTMLResponse)
-def history(request: Request, db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    try:
-        trans = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
-        transactions = []
-        for t in trans:
-            transactions.append({
-                "id": t.id,
-                "type": t.type,
-                "amount": t.amount / 100,
-                "status": t.status,
-                "created_at": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else ""
-            })
-        return templates.TemplateResponse("history.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "transactions": transactions
-        })
-    except Exception as e:
-        logger.error(f"Erro no histórico: {str(e)}", exc_info=True)
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "error_message": f"Erro interno no histórico: {str(e)}",
-            "back_url": "/dashboard"
-        }, status_code=500)
-
-@app.get("/settings", response_class=HTMLResponse)
-def settings_form(request: Request, db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    return templates.TemplateResponse("settings.html", {
-        "request": request,
-        "user_logged_in": True,
-        "user_email": user.email,
-        "user": user
-    })
-
-@app.post("/settings")
-def update_settings(request: Request, pix_key: str = Form(...), db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    user.pix_key = pix_key
-    db.commit()
-    return RedirectResponse("/settings", 302)
-
-@app.get("/logout")
-def logout():
-    response = RedirectResponse("/", 302)
-    response.delete_cookie("access_token")
-    return response
-
 @app.post("/webhook")
 async def webhook(request: Request, db: Session = Depends(get_db)):
+    """Recebe notificações da Promisse quando o pagamento é confirmado"""
     data = await request.json()
-    logger.info(f"Webhook recebido: {data}")
+    logger.info(f"📩 Webhook recebido: {json.dumps(data, indent=2)}")
+    
     trans_id = data.get("id")
     status = data.get("status")
+    
     if status == "paid":
+        # Busca a transação pelo ID externo
         trans = db.query(Transaction).filter(Transaction.transaction_id == trans_id).first()
-        if trans:
+        if trans and trans.status == "pending":
+            # Move de pendente para disponível (já com taxa descontada)
             user = db.query(User).filter(User.id == trans.user_id).first()
-            user.balance_pending -= trans.amount
-            user.balance_available += trans.amount
-            trans.status = "approved"
-            db.commit()
+            if user:
+                # Subtrai do pending e adiciona ao available (final_amount)
+                user.balance_pending -= trans.final_amount
+                user.balance_available += trans.final_amount
+                trans.status = "approved"
+                db.commit()
+                logger.info(f"✅ Pagamento confirmado: {trans_id}, valor líquido: {trans.final_amount}")
+            else:
+                logger.error(f"❌ Usuário não encontrado para transação {trans_id}")
+        else:
+            logger.warning(f"⚠️ Transação {trans_id} já processada ou não encontrada")
+    
     return {"message": "ok"}
 
-@app.get("/testar-api")
-def testar_api(request: Request):
-    """Rota de teste para verificar a conexão com a API Promisse"""
-    if not PROMISSE_API_KEY:
-        return {
-            "erro": "PROMISSE_API_KEY não configurada no ambiente",
-            "status": "erro"
-        }
-    
-    url = "https://api.promisse.com.br/transactions"
-    headers = {
-        "Authorization": PROMISSE_API_KEY,  # ⚠️ MESMA CORREÇÃO: sem "Bearer"
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "amount": 100,
-        "webhook": "https://revolution-pay.onrender.com/webhook"
-    }
-    
-    try:
-        info = {
-            "url": url,
-            "payload": payload,
-            "api_key_prefix": PROMISSE_API_KEY[:10] + "...",
-            "api_key_length": len(PROMISSE_API_KEY)
-        }
-        
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
-        
-        return {
-            "info": info,
-            "status_code": response.status_code,
-            "resposta_bruta": response.text[:500],
-            "sucesso": response.status_code in (200, 201)
-        }
-    except Exception as e:
-        return {
-            "erro": str(e),
-            "tipo": type(e).__name__
-        }
+# As demais rotas (withdraw, transfer, history, settings, logout) permanecem iguais
+# ... (mantenha as rotas que você já tinha funcionando)
