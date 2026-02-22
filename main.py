@@ -465,3 +465,47 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
             trans.status = "approved"
             db.commit()
     return {"message": "ok"}
+
+@app.get("/testar-api")
+def testar_api(request: Request):
+    """Rota de teste para verificar a conexão com a API Promisse"""
+    # Verifica se a chave está configurada
+    if not PROMISSE_API_KEY:
+        return {
+            "erro": "PROMISSE_API_KEY não configurada no ambiente",
+            "status": "erro"
+        }
+    
+    url = "https://api.promisse.com.br/transactions"
+    headers = {
+        "Authorization": f"Bearer {PROMISSE_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "amount": 100,
+        "webhook": "https://revolution-pay.onrender.com/webhook"
+    }
+    
+    try:
+        # Mostra o que está sendo enviado (sem a chave completa por segurança)
+        info = {
+            "url": url,
+            "payload": payload,
+            "api_key_prefix": PROMISSE_API_KEY[:10] + "...",
+            "api_key_length": len(PROMISSE_API_KEY)
+        }
+        
+        # Faz a requisição
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        
+        return {
+            "info": info,
+            "status_code": response.status_code,
+            "resposta_bruta": response.text[:500],
+            "sucesso": response.status_code in (200, 201)
+        }
+    except Exception as e:
+        return {
+            "erro": str(e),
+            "tipo": type(e).__name__
+        }
