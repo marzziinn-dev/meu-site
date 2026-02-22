@@ -158,7 +158,6 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "webhookUrl": "https://revolution-pay.onrender.com/webhook",
         }
 
-        # Verifica se a API key está presente
         if not api_key:
             return templates.TemplateResponse("error.html", {
                 "request": request,
@@ -179,11 +178,9 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
 
         response = requests.post(f"{api_base}/transactions", json=payload, headers=headers, timeout=30)
         
-        # Log detalhado da resposta
         logger.info(f"Status code: {response.status_code}")
         logger.info(f"Resposta bruta: {response.text}")
         
-        # Se a resposta não for JSON, tenta mostrar o texto
         try:
             data = response.json()
             logger.info(f"Resposta JSON: {json.dumps(data, indent=2)}")
@@ -191,6 +188,7 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             data = {"raw": response.text}
             logger.error(f"Resposta não é JSON: {response.text}")
 
+        # Se o status code não for sucesso, já trata
         if response.status_code not in (200, 201):
             error_msg = f"Erro na API Promisse: {response.status_code} - {response.text}"
             logger.error(error_msg)
@@ -202,26 +200,38 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
                 "back_url": "/deposit"
             }, status_code=400)
 
-        # Tentativa de extrair o código Pix de vários campos possíveis
+        # Verifica se a resposta indica erro (mesmo com status 200)
+        if data.get("status") == "error":
+            error_code = data.get("code", "desconhecido")
+            error_msg = f"Erro na API Promisse: {error_code} - {data.get('message', '')}"
+            logger.error(error_msg)
+            return templates.TemplateResponse("error.html", {
+                "request": request,
+                "user_logged_in": True,
+                "user_email": user.email,
+                "error_message": error_msg,
+                "back_url": "/deposit"
+            }, status_code=400)
+
+        # Agora sim, procura o código Pix
         pix_code = None
-        possible_fields = ["brcode", "pix_code", "qr_code", "end_to_end", "pixCopiaECola", "pix", "code", "copiaecola"]
+        possible_fields = ["brcode", "pix_code", "qr_code", "end_to_end", "pixCopiaECola", "pix", "copiaecola"]
         for field in possible_fields:
             if field in data:
                 pix_code = data[field]
                 logger.info(f"Código Pix encontrado no campo '{field}': {pix_code[:50]}...")
                 break
         
-        # Se não achou, tenta procurar em objetos aninhados
-        if not pix_code and "pix" in data and isinstance(data["pix"], dict):
-            pix_data = data["pix"]
-            for field in possible_fields:
-                if field in pix_data:
-                    pix_code = pix_data[field]
-                    logger.info(f"Código Pix encontrado em data['pix']['{field}']")
-                    break
+        if not pix_code:
+            # Se não encontrou, tenta dentro de objetos aninhados
+            if "pix" in data and isinstance(data["pix"], dict):
+                for field in possible_fields:
+                    if field in data["pix"]:
+                        pix_code = data["pix"][field]
+                        logger.info(f"Código Pix encontrado em data['pix']['{field}']")
+                        break
         
         if not pix_code:
-            # Se ainda não encontrou, lista os campos disponíveis
             campos = list(data.keys())
             error_msg = f"Código Pix não encontrado. Campos disponíveis: {campos}"
             logger.error(error_msg)
@@ -233,13 +243,13 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
                 "back_url": "/deposit"
             }, status_code=500)
 
-        # Gera o QR code a partir do código Pix
+        # Gera o QR code
         qr = qrcode.make(pix_code)
         buffered = io.BytesIO()
         qr.save(buffered, format="PNG")
         qr_base64 = base64.b64encode(buffered.getvalue()).decode()
 
-        # Salva a transação no banco
+        # Salva a transação
         trans = Transaction(
             user_id=user_id,
             transaction_id=data.get("id", str(uuid.uuid4())),
