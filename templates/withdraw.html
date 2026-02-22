@@ -1,39 +1,43 @@
 {% extends "base.html" %}
+
 {% block title %}Saque{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <i class="bi bi-cash"></i> Solicitar saque
+    <div class="col-md-8">
+        <div class="card-modern">
+            <div class="text-center mb-4">
+                <i class="bi bi-cash display-1 text-success"></i>
+                <h2 class="fw-bold">Solicitar Saque</h2>
+                <p class="text-muted">Transfira seu saldo para sua conta</p>
             </div>
-            <div class="card-body">
-                <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i>
-                    Saldo disponível: <strong>R$ {{ "%.2f"|format(available) }}</strong>
+            
+            <div class="alert alert-info d-flex align-items-center gap-3 mb-4">
+                <i class="bi bi-info-circle fs-4"></i>
+                <div>
+                    <strong>Saldo disponível:</strong> R$ {{ "%.2f"|format(available) }}
+                </div>
+            </div>
+            
+            <form method="post" action="/withdraw">
+                <div class="mb-3">
+                    <label class="form-label">Valor do saque (R$)</label>
+                    <input type="number" step="0.01" name="amount" class="form-control form-control-lg" 
+                           placeholder="Digite o valor" min="0.01" max="{{ available }}" required>
+                    <div class="form-text">Digite o valor em reais (ex: 10.00)</div>
                 </div>
                 
-                <form method="post" action="/withdraw">
-                    <div class="mb-3">
-                        <label class="form-label">Valor do saque (em centavos)</label>
-                        <input type="number" name="amount" class="form-control" 
-                               placeholder="Ex: 1000 = R$ 10,00" 
-                               min="1" max="{{ available * 100 }}" required>
-                        <div class="form-text">Digite o valor em centavos (máx: {{ "%.2f"|format(available) }})</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Chave Pix</label>
-                        <input type="text" name="pix_key" class="form-control" 
-                               value="{{ pix_key }}" required>
-                        <div class="form-text">Sua chave Pix (CPF, email, telefone ou aleatória)</div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="bi bi-send"></i> Solicitar saque
-                    </button>
-                </form>
-            </div>
+                <div class="mb-4">
+                    <label class="form-label">Chave Pix</label>
+                    <input type="text" name="pix_key" class="form-control form-control-lg" 
+                           value="{{ pix_key }}" placeholder="CPF, email, telefone ou chave aleatória" required>
+                    <div class="form-text">Sua chave Pix para receber o dinheiro</div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary-modern w-100 py-3">
+                    <i class="bi bi-send"></i> Solicitar saque
+                </button>
+            </form>
         </div>
     </div>
 </div>
