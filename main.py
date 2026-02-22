@@ -42,6 +42,7 @@ logger.info(f"SECRET_KEY definida: {'sim' if SECRET_KEY else 'não'}")
 logger.info(f"PROMISSE_API_KEY definida: {'sim' if PROMISSE_API_KEY else 'não'}")
 if PROMISSE_API_KEY:
     logger.info(f"PROMISSE_API_KEY (primeiros 10 chars): {PROMISSE_API_KEY[:10]}...")
+    logger.info(f"Tamanho da chave: {len(PROMISSE_API_KEY)}")
 logger.info("================================")
 
 def get_db():
@@ -159,10 +160,14 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
             "back_url": "/deposit"
         }, status_code=500)
 
-    # Payload exato que funcionou no teste manual
+    # Payload IGUAL ao que você testou no "Try It"
+    # Ajuste os campos conforme o que funcionou lá
     payload = {
-        "amount": amount,  # amount já vem em centavos do formulário
+        "amount": amount,  # ou str(amount) se no Try It funcionou como string
         "webhook": "https://revolution-pay.onrender.com/webhook"
+        # Se no Try It você usou split, descomente:
+        # "split_email": "usuario@exemplo.com",
+        # "split_tax": 5
     }
 
     headers = {
@@ -171,14 +176,28 @@ def create_deposit(request: Request, amount: int = Form(...), db: Session = Depe
     }
 
     url = "https://api.promisse.com.br/transactions"
-    logger.info(f"Enviando requisição para {url}")
-    logger.info(f"Payload: {json.dumps(payload)}")
-    logger.info(f"Headers: Authorization: Bearer {PROMISSE_API_KEY[:10]}... (oculto)")
+    
+    # LOG DETALHADO PARA COMPARAÇÃO
+    logger.info("="*50)
+    logger.info(" REQUISIÇÃO PARA API PROMISSE ")
+    logger.info("="*50)
+    logger.info(f"URL: {url}")
+    logger.info(f"Método: POST")
+    logger.info(f"Headers: {json.dumps(headers, indent=2)}")
+    logger.info(f"Payload: {json.dumps(payload, indent=2)}")
+    logger.info(f"Chave (primeiros 10): {PROMISSE_API_KEY[:10]}...")
+    logger.info("="*50)
 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=30)
+        
+        logger.info("="*50)
+        logger.info(" RESPOSTA DA API ")
+        logger.info("="*50)
         logger.info(f"Status code: {response.status_code}")
+        logger.info(f"Headers: {dict(response.headers)}")
         logger.info(f"Resposta bruta: {response.text}")
+        logger.info("="*50)
 
         if response.status_code not in (200, 201):
             error_msg = f"Erro na API Promisse: {response.status_code} - {response.text}"
@@ -469,7 +488,6 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
 @app.get("/testar-api")
 def testar_api(request: Request):
     """Rota de teste para verificar a conexão com a API Promisse"""
-    # Verifica se a chave está configurada
     if not PROMISSE_API_KEY:
         return {
             "erro": "PROMISSE_API_KEY não configurada no ambiente",
@@ -487,7 +505,6 @@ def testar_api(request: Request):
     }
     
     try:
-        # Mostra o que está sendo enviado (sem a chave completa por segurança)
         info = {
             "url": url,
             "payload": payload,
@@ -495,7 +512,6 @@ def testar_api(request: Request):
             "api_key_length": len(PROMISSE_API_KEY)
         }
         
-        # Faz a requisição
         response = requests.post(url, json=payload, headers=headers, timeout=10)
         
         return {
