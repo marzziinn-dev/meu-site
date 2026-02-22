@@ -6,8 +6,10 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
-    email = Column(String, unique=True)
-    password = Column(String)
+    nome_completo = Column(String, nullable=False)
+    cpf = Column(String, unique=True, nullable=False)
+    email = Column(String, unique=True, nullable=False)
+    password = Column(String, nullable=False)
     api_key = Column(String, unique=True)
     balance_available = Column(Integer, default=0)
     balance_pending = Column(Integer, default=0)
@@ -18,9 +20,9 @@ class Transaction(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    transaction_id = Column(String)  # ID da transação na Promisse
-    amount = Column(Integer)  # Valor original em centavos (antes da taxa)
-    final_amount = Column(Integer, default=0)  # Valor líquido após taxa (em centavos)
-    status = Column(String)  # pending, approved, rejected
-    type = Column(String)  # deposit, withdraw, transfer_in, transfer_out
+    transaction_id = Column(String)
+    amount = Column(Integer)
+    final_amount = Column(Integer, default=0)
+    status = Column(String)
+    type = Column(String)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
