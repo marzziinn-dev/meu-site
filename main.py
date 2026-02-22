@@ -53,6 +53,152 @@ def get_db():
     finally:
         db.close()
 
+def get_admin(request: Request):
+    """Verifica se o usuário é admin (pelo cookie)"""
+    admin_token = request.cookies.get("admin_token")
+    if admin_token != "admin_logado":
+        raise HTTPException(status_code=401, detail="Acesso negado")
+    return True
+
+# ==================== PAINEL ADMIN SECRETO ====================
+# Acesso: /admin-painel-9f3k2d
+# Senha: Revolution555mwller
+# ==============================================================
+
+SENHA_ADMIN = "Revolution555mwller"
+
+@app.get("/admin-painel-9f3k2d", response_class=HTMLResponse)
+def admin_login_form(request: Request):
+    """Página de login do admin"""
+    return templates.TemplateResponse("admin_login.html", {
+        "request": request,
+        "user_logged_in": False
+    })
+
+@app.post("/admin-painel-9f3k2d")
+def admin_login(request: Request, senha: str = Form(...)):
+    """Faz login no painel admin"""
+    if senha == SENHA_ADMIN:
+        response = RedirectResponse(url="/admin-dashboard-7h4g9w", status_code=302)
+        response.set_cookie(key="admin_token", value="admin_logado", httponly=True)
+        return response
+    else:
+        return templates.TemplateResponse("admin_login.html", {
+            "request": request,
+            "user_logged_in": False,
+            "erro": "Senha incorreta"
+        })
+
+@app.get("/admin-dashboard-7h4g9w", response_class=HTMLResponse)
+def admin_dashboard(request: Request, db: Session = Depends(get_db), admin: bool = Depends(get_admin)):
+    """Dashboard principal do admin"""
+    usuarios = db.query(User).all()
+    transacoes = db.query(Transaction).order_by(Transaction.id.desc()).limit(50).all()
+    
+    stats = {
+        "total_usuarios": len(usuarios),
+        "saldo_total": sum(u.balance_available for u in usuarios) / 100,
+        "saldo_pendente": sum(u.balance_pending for u in usuarios) / 100,
+        "total_transacoes": db.query(Transaction).count()
+    }
+    
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": "ADMIN",
+        "usuarios": usuarios,
+        "transacoes": transacoes,
+        "stats": stats
+    })
+
+@app.post("/admin/adicionar-saldo")
+def admin_adicionar_saldo(
+    request: Request,
+    email: str = Form(...),
+    valor: int = Form(...),
+    db: Session = Depends(get_db),
+    admin: bool = Depends(get_admin)
+):
+    """Adiciona saldo a um usuário"""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
+    
+    user.balance_available += valor
+    trans = Transaction(
+        user_id=user.id,
+        transaction_id=f"admin_add_{uuid.uuid4()}",
+        amount=valor,
+        final_amount=valor,
+        status="approved",
+        type="deposit"
+    )
+    db.add(trans)
+    db.commit()
+    
+    return RedirectResponse(url="/admin-dashboard-7h4g9w", status_code=302)
+
+@app.post("/admin/remover-saldo")
+def admin_remover_saldo(
+    request: Request,
+    email: str = Form(...),
+    valor: int = Form(...),
+    db: Session = Depends(get_db),
+    admin: bool = Depends(get_admin)
+):
+    """Remove saldo de um usuário"""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
+    
+    if user.balance_available < valor:
+        return JSONResponse({"erro": "Saldo insuficiente"}, status_code=400)
+    
+    user.balance_available -= valor
+    trans = Transaction(
+        user_id=user.id,
+        transaction_id=f"admin_remove_{uuid.uuid4()}",
+        amount=-valor,
+        final_amount=-valor,
+        status="approved",
+        type="withdraw"
+    )
+    db.add(trans)
+    db.commit()
+    
+    return RedirectResponse(url="/admin-dashboard-7h4g9w", status_code=302)
+
+@app.get("/admin/usuarios/{user_id}")
+def admin_usuario_detalhe(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: bool = Depends(get_admin)
+):
+    """Detalhes de um usuário específico"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
+    
+    transacoes = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
+    
+    return templates.TemplateResponse("admin_usuario.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": "ADMIN",
+        "usuario": user,
+        "transacoes": transacoes
+    })
+
+@app.get("/admin/logout")
+def admin_logout():
+    """Sair do painel admin"""
+    response = RedirectResponse(url="/", status_code=302)
+    response.delete_cookie("admin_token")
+    return response
+
+# ==================== ROTAS NORMAIS DO SITE ====================
+
 @app.get("/", response_class=HTMLResponse)
 def root(request: Request):
     try:
@@ -153,41 +299,27 @@ def verificar_transacao(transaction_id: str, request: Request, db: Session = Dep
     })
 
 @app.get("/admin/recuperar-transacoes")
-def recuperar_transacoes(request: Request, db: Session = Depends(get_db)):
+def recuperar_transacoes(request: Request, db: Session = Depends(get_db), admin: bool = Depends(get_admin)):
     """Rota para recuperar transações pendentes antigas (use apenas uma vez)"""
-    try:
-        user_id = get_current_user(request)
-        user = db.query(User).filter(User.id == user_id).first()
-        if user.email != "marzziinn@gmail.com":  # só você pode acessar
-            return {"erro": "Acesso negado"}
-    except:
-        return {"erro": "Não autenticado"}
-    
     pendentes = db.query(Transaction).filter(
-        Transaction.user_id == user_id,
         Transaction.status == "pending",
         Transaction.type == "deposit"
     ).all()
     
     resultados = []
     for trans in pendentes:
-        # SIMULAÇÃO: considera que a transação de 1 real foi aprovada
-        if trans.amount == 100:  # 1 real em centavos
+        # SIMULAÇÃO: considera que todas as transações pendentes antigas foram aprovadas
+        user = db.query(User).filter(User.id == trans.user_id).first()
+        if user:
             user.balance_pending -= trans.final_amount
             user.balance_available += trans.final_amount
             trans.status = "approved"
             resultados.append({
                 "id": trans.id,
+                "user_email": user.email,
                 "amount": trans.amount,
                 "final_amount": trans.final_amount,
                 "status": "approved (recuperado)"
-            })
-        else:
-            resultados.append({
-                "id": trans.id,
-                "amount": trans.amount,
-                "final_amount": trans.final_amount,
-                "status": "ainda pendente"
             })
     
     db.commit()
@@ -424,115 +556,4 @@ def create_transfer(request: Request, dest_email: str = Form(...), amount: int =
     user = db.query(User).filter(User.id == user_id).first()
     
     if user.balance_available < amount:
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "error_message": f"Saldo insuficiente. Disponível: R$ {user.balance_available/100:.2f}",
-            "back_url": "/transfer"
-        }, status_code=400)
-    
-    dest = db.query(User).filter(User.email == dest_email).first()
-    if not dest:
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "error_message": "Destinatário não encontrado.",
-            "back_url": "/transfer"
-        }, status_code=400)
-    
-    out = Transaction(
-        user_id=user_id,
-        transaction_id=f"out-{uuid.uuid4()}",
-        amount=-amount,
-        final_amount=-amount,
-        status="approved",
-        type="transfer_out"
-    )
-    inc = Transaction(
-        user_id=dest.id,
-        transaction_id=f"in-{uuid.uuid4()}",
-        amount=amount,
-        final_amount=amount,
-        status="approved",
-        type="transfer_in"
-    )
-    
-    user.balance_available -= amount
-    dest.balance_available += amount
-    
-    db.add_all([out, inc])
-    db.commit()
-    
-    return RedirectResponse("/dashboard", 302)
-
-@app.get("/history", response_class=HTMLResponse)
-def history(request: Request, db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    try:
-        trans = db.query(Transaction).filter(
-            Transaction.user_id == user_id,
-            Transaction.status == "approved"
-        ).order_by(Transaction.id.desc()).all()
-        
-        transactions = []
-        for t in trans:
-            amount = t.final_amount if t.final_amount != 0 else t.amount
-            transactions.append({
-                "id": t.id,
-                "type": t.type,
-                "amount": amount / 100,
-                "status": t.status,
-                "created_at": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else ""
-            })
-        return templates.TemplateResponse("history.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "transactions": transactions
-        })
-    except Exception as e:
-        logger.error(f"Erro no histórico: {str(e)}", exc_info=True)
-        return templates.TemplateResponse("error.html", {
-            "request": request,
-            "user_logged_in": True,
-            "user_email": user.email,
-            "error_message": f"Erro interno no histórico: {str(e)}",
-            "back_url": "/dashboard"
-        }, status_code=500)
-
-@app.get("/settings", response_class=HTMLResponse)
-def settings_form(request: Request, db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    return templates.TemplateResponse("settings.html", {
-        "request": request,
-        "user_logged_in": True,
-        "user_email": user.email,
-        "user": user
-    })
-
-@app.post("/settings")
-def update_settings(request: Request, pix_key: str = Form(...), db: Session = Depends(get_db)):
-    try:
-        user_id = get_current_user(request)
-    except:
-        return RedirectResponse(url="/")
-    user = db.query(User).filter(User.id == user_id).first()
-    user.pix_key = pix_key
-    db.commit()
-    return RedirectResponse("/settings", 302)
-
-@app.get("/logout")
-def logout():
-    response = RedirectResponse("/", 302)
-    response.delete_cookie("access_token")
-    return response
+        return templates.TemplateResponse("error.
