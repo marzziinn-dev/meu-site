@@ -566,4 +566,159 @@ def create_transfer(request: Request, dest_email: str = Form(...), amount: int =
             "request": request,
             "user_logged_in": True,
             "user_email": user.email,
-            "erro
+            "error_message": "Chave Pix obrigatória.",
+            "back_url": "/withdraw"
+        }, status_code=400)
+    
+    if pix_key:
+        user.pix_key = pix_key
+    
+    trans = Transaction(
+        user_id=user_id,
+        transaction_id=f"withdraw-{uuid.uuid4()}",
+        amount=-amount,
+        final_amount=-amount,
+        status="approved",
+        type="withdraw"
+    )
+    db.add(trans)
+    user.balance_available -= amount
+    db.commit()
+    
+    return RedirectResponse("/dashboard", 302)
+
+@app.get("/transfer", response_class=HTMLResponse)
+def transfer_form(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("transfer.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "available": user.balance_available / 100
+    })
+
+@app.post("/transfer")
+def create_transfer(request: Request, dest_email: str = Form(...), amount: int = Form(...), db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if user.balance_available < amount:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": f"Saldo insuficiente. Disponível: R$ {user.balance_available/100:.2f}",
+            "back_url": "/transfer"
+        }, status_code=400)
+    
+    dest = db.query(User).filter(User.email == dest_email).first()
+    if not dest:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": "Destinatário não encontrado.",
+            "back_url": "/transfer"
+        }, status_code=400)
+    
+    out = Transaction(
+        user_id=user_id,
+        transaction_id=f"out-{uuid.uuid4()}",
+        amount=-amount,
+        final_amount=-amount,
+        status="approved",
+        type="transfer_out"
+    )
+    inc = Transaction(
+        user_id=dest.id,
+        transaction_id=f"in-{uuid.uuid4()}",
+        amount=amount,
+        final_amount=amount,
+        status="approved",
+        type="transfer_in"
+    )
+    
+    user.balance_available -= amount
+    dest.balance_available += amount
+    
+    db.add_all([out, inc])
+    db.commit()
+    
+    return RedirectResponse("/dashboard", 302)
+
+@app.get("/history", response_class=HTMLResponse)
+def history(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    try:
+        trans = db.query(Transaction).filter(
+            Transaction.user_id == user_id,
+            Transaction.status == "approved"
+        ).order_by(Transaction.id.desc()).all()
+        
+        transactions = []
+        for t in trans:
+            amount = t.final_amount if t.final_amount != 0 else t.amount
+            transactions.append({
+                "id": t.id,
+                "type": t.type,
+                "amount": amount / 100,
+                "status": t.status,
+                "created_at": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else ""
+            })
+        return templates.TemplateResponse("history.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "transactions": transactions
+        })
+    except Exception as e:
+        logger.error(f"Erro no histórico: {str(e)}", exc_info=True)
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": user.email,
+            "error_message": f"Erro interno no histórico: {str(e)}",
+            "back_url": "/dashboard"
+        }, status_code=500)
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_form(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    return templates.TemplateResponse("settings.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "user": user
+    })
+
+@app.post("/settings")
+def update_settings(request: Request, pix_key: str = Form(...), db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    user = db.query(User).filter(User.id == user_id).first()
+    user.pix_key = pix_key
+    db.commit()
+    return RedirectResponse("/settings", 302)
+
+@app.get("/logout")
+def logout():
+    response = RedirectResponse("/", 302)
+    response.delete_cookie("access_token")
+    return response
