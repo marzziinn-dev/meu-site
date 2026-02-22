@@ -266,16 +266,20 @@ def root(request: Request):
     return templates.TemplateResponse("login.html", {"request": request, "user_logged_in": False})
 
 @app.get("/register", response_class=HTMLResponse)
-def register_form(request: Request, erro: str = None, sucesso: str = None):
+def register_form(request: Request, erro: str = None, sucesso: str = None, nome_completo: str = "", cpf: str = "", email: str = ""):
     return templates.TemplateResponse("register.html", {
         "request": request,
         "user_logged_in": False,
         "erro": erro,
-        "sucesso": sucesso
+        "sucesso": sucesso,
+        "nome_completo": nome_completo,
+        "cpf": cpf,
+        "email": email
     })
 
 @app.post("/register")
 def register(
+    request: Request,
     nome_completo: str = Form(...),
     cpf: str = Form(...),
     email: str = Form(...),
@@ -290,7 +294,7 @@ def register(
     
     if len(partes) < 2:
         return templates.TemplateResponse("register.html", {
-            "request": Request,
+            "request": request,
             "user_logged_in": False,
             "erro": "Nome completo deve conter pelo menos nome e sobrenome (ex: João Silva)",
             "nome_completo": nome_completo,
@@ -301,7 +305,7 @@ def register(
     for parte in partes:
         if not parte.isalpha():
             return templates.TemplateResponse("register.html", {
-                "request": Request,
+                "request": request,
                 "user_logged_in": False,
                 "erro": "Nome deve conter apenas letras (sem números ou caracteres especiais)",
                 "nome_completo": nome_completo,
@@ -312,7 +316,7 @@ def register(
     for parte in partes:
         if len(parte) < 2:
             return templates.TemplateResponse("register.html", {
-                "request": Request,
+                "request": request,
                 "user_logged_in": False,
                 "erro": "Cada parte do nome deve ter pelo menos 2 letras",
                 "nome_completo": nome_completo,
@@ -325,7 +329,7 @@ def register(
     
     if not cpf_limpo.isdigit() or len(cpf_limpo) != 11:
         return templates.TemplateResponse("register.html", {
-            "request": Request,
+            "request": request,
             "user_logged_in": False,
             "erro": "CPF deve conter 11 dígitos numéricos (ex: 123.456.789-00)",
             "nome_completo": nome_completo,
@@ -335,7 +339,7 @@ def register(
     
     if not validar_cpf(cpf_limpo):
         return templates.TemplateResponse("register.html", {
-            "request": Request,
+            "request": request,
             "user_logged_in": False,
             "erro": "CPF inválido. Digite um CPF válido.",
             "nome_completo": nome_completo,
@@ -346,7 +350,7 @@ def register(
     # ===== VALIDAÇÕES DE DUPLICIDADE =====
     if db.query(User).filter(User.email == email).first():
         return templates.TemplateResponse("register.html", {
-            "request": Request,
+            "request": request,
             "user_logged_in": False,
             "erro": "Email já cadastrado. Tente outro email.",
             "nome_completo": nome_completo,
@@ -356,7 +360,7 @@ def register(
     
     if db.query(User).filter(User.cpf == cpf_limpo).first():
         return templates.TemplateResponse("register.html", {
-            "request": Request,
+            "request": request,
             "user_logged_in": False,
             "erro": "CPF já cadastrado em outra conta.",
             "nome_completo": nome_completo,
