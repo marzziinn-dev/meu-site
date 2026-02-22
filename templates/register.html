@@ -12,14 +12,36 @@
                 <p class="text-muted">Preencha seus dados para começar</p>
             </div>
             
+            <!-- Mensagens de erro (se houver) -->
+            {% if erro %}
+            <div class="alert alert-danger d-flex align-items-center gap-2 mb-4">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <div>
+                    <strong>Erro!</strong> {{ erro }}
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if sucesso %}
+            <div class="alert alert-success d-flex align-items-center gap-2 mb-4">
+                <i class="bi bi-check-circle-fill"></i>
+                <div>
+                    <strong>Sucesso!</strong> {{ sucesso }}
+                </div>
+            </div>
+            {% endif %}
+            
             <form method="post" action="/register">
                 <!-- Nome Completo -->
                 <div class="mb-3">
                     <label class="form-label">Nome Completo</label>
                     <div class="input-group">
                         <span class="input-group-text bg-transparent"><i class="bi bi-person" style="color: #FF8C00;"></i></span>
-                        <input type="text" name="nome_completo" class="form-control" required autofocus>
+                        <input type="text" name="nome_completo" class="form-control" 
+                               value="{{ nome_completo or '' }}" required autofocus
+                               placeholder="Ex: João Silva Santos">
                     </div>
+                    <div class="form-text">Digite seu nome completo (pelo menos nome e sobrenome)</div>
                 </div>
 
                 <!-- CPF -->
@@ -27,8 +49,12 @@
                     <label class="form-label">CPF</label>
                     <div class="input-group">
                         <span class="input-group-text bg-transparent"><i class="bi bi-credit-card" style="color: #FF8C00;"></i></span>
-                        <input type="text" name="cpf" class="form-control" placeholder="000.000.000-00" required>
+                        <input type="text" name="cpf" class="form-control" 
+                               value="{{ cpf or '' }}" required
+                               placeholder="123.456.789-00" 
+                               oninput="formatarCPF(this)">
                     </div>
+                    <div class="form-text">Digite seu CPF com ou sem pontuação</div>
                 </div>
 
                 <!-- Email -->
@@ -36,7 +62,9 @@
                     <label class="form-label">E-mail</label>
                     <div class="input-group">
                         <span class="input-group-text bg-transparent"><i class="bi bi-envelope" style="color: #FF8C00;"></i></span>
-                        <input type="email" name="email" class="form-control" required>
+                        <input type="email" name="email" class="form-control" 
+                               value="{{ email or '' }}" required
+                               placeholder="seu@email.com">
                     </div>
                 </div>
                 
@@ -61,4 +89,23 @@
         </div>
     </div>
 </div>
+
+<script>
+// Função para formatar CPF enquanto digita (opcional)
+function formatarCPF(campo) {
+    let valor = campo.value.replace(/\D/g, '');
+    if (valor.length <= 11) {
+        if (valor.length > 9) {
+            valor = valor.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+        } else if (valor.length > 6) {
+            valor = valor.replace(/(\d{3})(\d{3})(\d{3})/, '$1.$2.$3');
+        } else if (valor.length > 3) {
+            valor = valor.replace(/(\d{3})(\d{3})/, '$1.$2');
+        } else if (valor.length > 0) {
+            valor = valor.replace(/(\d{3})/, '$1');
+        }
+        campo.value = valor;
+    }
+}
+</script>
 {% endblock %}
