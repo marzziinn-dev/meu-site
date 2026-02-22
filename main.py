@@ -152,6 +152,50 @@ def verificar_transacao(transaction_id: str, request: Request, db: Session = Dep
         "final_amount": trans.final_amount
     })
 
+@app.get("/admin/recuperar-transacoes")
+def recuperar_transacoes(request: Request, db: Session = Depends(get_db)):
+    """Rota para recuperar transações pendentes antigas (use apenas uma vez)"""
+    try:
+        user_id = get_current_user(request)
+        user = db.query(User).filter(User.id == user_id).first()
+        if user.email != "marzziinn@gmail.com":  # só você pode acessar
+            return {"erro": "Acesso negado"}
+    except:
+        return {"erro": "Não autenticado"}
+    
+    pendentes = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.status == "pending",
+        Transaction.type == "deposit"
+    ).all()
+    
+    resultados = []
+    for trans in pendentes:
+        # SIMULAÇÃO: considera que a transação de 1 real foi aprovada
+        if trans.amount == 100:  # 1 real em centavos
+            user.balance_pending -= trans.final_amount
+            user.balance_available += trans.final_amount
+            trans.status = "approved"
+            resultados.append({
+                "id": trans.id,
+                "amount": trans.amount,
+                "final_amount": trans.final_amount,
+                "status": "approved (recuperado)"
+            })
+        else:
+            resultados.append({
+                "id": trans.id,
+                "amount": trans.amount,
+                "final_amount": trans.final_amount,
+                "status": "ainda pendente"
+            })
+    
+    db.commit()
+    return {
+        "mensagem": "Recuperação concluída",
+        "transacoes_recuperadas": resultados
+    }
+
 @app.get("/deposit", response_class=HTMLResponse)
 def deposit_form(request: Request, db: Session = Depends(get_db)):
     try:
@@ -343,12 +387,11 @@ def create_withdraw(request: Request, amount: int = Form(...), pix_key: str = Fo
     if pix_key:
         user.pix_key = pix_key
     
-    # Cria transação de saque
     trans = Transaction(
         user_id=user_id,
         transaction_id=f"withdraw-{uuid.uuid4()}",
         amount=-amount,
-        final_amount=-amount,  # saque não tem taxa (por enquanto)
+        final_amount=-amount,
         status="approved",
         type="withdraw"
     )
@@ -399,7 +442,6 @@ def create_transfer(request: Request, dest_email: str = Form(...), amount: int =
             "back_url": "/transfer"
         }, status_code=400)
     
-    # Transação de saída (quem transfere)
     out = Transaction(
         user_id=user_id,
         transaction_id=f"out-{uuid.uuid4()}",
@@ -408,7 +450,6 @@ def create_transfer(request: Request, dest_email: str = Form(...), amount: int =
         status="approved",
         type="transfer_out"
     )
-    # Transação de entrada (quem recebe)
     inc = Transaction(
         user_id=dest.id,
         transaction_id=f"in-{uuid.uuid4()}",
@@ -436,7 +477,7 @@ def history(request: Request, db: Session = Depends(get_db)):
     try:
         trans = db.query(Transaction).filter(
             Transaction.user_id == user_id,
-            Transaction.status == "approved"  # só mostra as confirmadas
+            Transaction.status == "approved"
         ).order_by(Transaction.id.desc()).all()
         
         transactions = []
