@@ -8,11 +8,18 @@
                 <i class="bi bi-check-circle"></i> Pagamento gerado
             </div>
             <div class="card-body text-center">
-                <div class="alert alert-info">
+                <div class="alert alert-info" id="aviso">
                     <i class="bi bi-info-circle"></i>
                     Após o pagamento, o saldo será atualizado em instantes.
                     <br>
                     <small>Taxa de 3% já descontada.</small>
+                </div>
+                
+                <div id="confirmado" style="display: none;">
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle-fill"></i>
+                        <strong>Pagamento confirmado!</strong> O saldo já está disponível.
+                    </div>
                 </div>
                 
                 <h5 class="mb-3">Valor a pagar: <strong class="text-success">R$ {{ "%.2f"|format(amount) }}</strong></h5>
@@ -31,9 +38,14 @@
                     </div>
                 </div>
                 
-                <a href="/dashboard" class="btn btn-primary">
-                    <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
-                </a>
+                <div class="d-grid gap-2">
+                    <a href="/dashboard" class="btn btn-primary">
+                        <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
+                    </a>
+                    <button class="btn btn-outline-success" onclick="verificarPagamento()" id="btnVerificar">
+                        <i class="bi bi-arrow-repeat"></i> Verificar se já paguei
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -44,5 +56,29 @@ function copyPix() {
     navigator.clipboard.writeText(document.getElementById('pixCode').value);
     alert('Código Pix copiado!');
 }
+
+function verificarPagamento() {
+    // Simula verificação (na prática, o webhook já atualizou)
+    fetch('/dashboard')
+        .then(response => response.text())
+        .then(html => {
+            // Se chegou aqui, a sessão ainda está ativa
+            // Recarrega a página para ver o saldo atualizado
+            window.location.href = '/dashboard';
+        });
+}
+
+// Verifica a cada 10 segundos se o pagamento foi confirmado
+setInterval(function() {
+    fetch('/api/verificar-transacao/{{ transaction_id }}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'approved') {
+                document.getElementById('aviso').style.display = 'none';
+                document.getElementById('confirmado').style.display = 'block';
+                document.getElementById('btnVerificar').disabled = true;
+            }
+        });
+}, 10000);
 </script>
 {% endblock %}
