@@ -153,7 +153,7 @@
             color: #000000;
         }
 
-        .dev-badge {
+        .admin-badge {
             background: #FF8C00;
             color: #000000;
             padding: 2px 8px;
@@ -273,7 +273,7 @@
             color: #000000;
         }
 
-        .btn-dev {
+        .btn-admin {
             background: #FF8C00;
             color: #000000;
             border: none;
@@ -287,7 +287,7 @@
             box-shadow: 0 4px 15px rgba(255, 140, 0, 0.3);
         }
 
-        .btn-dev:hover {
+        .btn-admin:hover {
             background: #e67e00;
             transform: translateY(-2px);
             color: #000000;
@@ -476,19 +476,19 @@
                     Configurações
                 </a>
             </li>
-            {% if tem_acesso_dev %}
+            {% if tem_acesso_admin %}
             <li>
-                <a href="/dev-dashboard">
-                    <i class="bi bi-code-square"></i>
-                    Painel Desenvolvedor
-                    <span class="dev-badge">DEV</span>
+                <a href="/admin-dashboard">
+                    <i class="bi bi-shield-lock"></i>
+                    Painel Admin
+                    <span class="admin-badge">ADMIN</span>
                 </a>
             </li>
             {% else %}
             <li>
-                <a href="/dev-painel">
-                    <i class="bi bi-code-square"></i>
-                    Acesso Dev
+                <a href="/admin-painel">
+                    <i class="bi bi-shield-lock"></i>
+                    Acesso Admin
                 </a>
             </li>
             {% endif %}
@@ -530,10 +530,10 @@
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="/settings"><i class="bi bi-gear"></i> Configurações</a></li>
-                            {% if tem_acesso_dev %}
-                            <li><a class="dropdown-item" href="/dev-dashboard"><i class="bi bi-code-square"></i> Painel Dev</a></li>
+                            {% if tem_acesso_admin %}
+                            <li><a class="dropdown-item" href="/admin-dashboard"><i class="bi bi-shield-lock"></i> Painel Admin</a></li>
                             {% else %}
-                            <li><a class="dropdown-item" href="/dev-painel"><i class="bi bi-code-square"></i> Acesso Dev</a></li>
+                            <li><a class="dropdown-item" href="/admin-painel"><i class="bi bi-shield-lock"></i> Acesso Admin</a></li>
                             {% endif %}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item text-danger" href="/logout"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
