@@ -7,23 +7,50 @@
     <div class="col-md-8">
         <div class="card-modern">
             <div class="text-center mb-4">
-                <i class="bi bi-gear display-1 text-primary"></i>
-                <h2 class="fw-bold">Configurações da Conta</h2>
+                <i class="bi bi-gear display-1" style="color: #FF8C00;"></i>
+                <h2 class="fw-bold" style="color: #FF8C00;">Configurações da Conta</h2>
                 <p class="text-muted">Gerencie suas informações pessoais</p>
+            </div>
+            
+            <div class="mb-4 p-3 bg-dark rounded">
+                <h5 class="mb-3"><i class="bi bi-info-circle" style="color: #FF8C00;"></i> Sua Rota</h5>
+                <div class="d-flex align-items-center gap-3">
+                    {% if user.rota == 'black' %}
+                    <span class="badge bg-warning p-2">Rota Black</span>
+                    <span class="text-muted small">Taxa: 7% + R$1,00 na entrada | R$1,00 na saída</span>
+                    {% else %}
+                    <span class="badge bg-success p-2">Rota White</span>
+                    <span class="text-muted small">Taxa: 3% na entrada | R$1,00 na saída</span>
+                    {% endif %}
+                </div>
             </div>
             
             <form method="post" action="/settings">
                 <div class="mb-3">
+                    <label class="form-label">Nome Completo</label>
+                    <input type="text" class="form-control" value="{{ user.nome_completo }}" disabled>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">CPF</label>
+                    <input type="text" class="form-control" value="{{ user.cpf[:3] }}.{{ user.cpf[3:6] }}.{{ user.cpf[6:9] }}-{{ user.cpf[9:] }}" disabled>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Telefone</label>
+                    <input type="text" class="form-control" value="({{ user.telefone[:2] }}) {{ user.telefone[2:7] }}-{{ user.telefone[7:] }}" disabled>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">E-mail</label>
+                    <input type="email" class="form-control" value="{{ user.email }}" disabled>
+                </div>
+                
+                <div class="mb-4">
                     <label class="form-label">Chave Pix</label>
                     <input type="text" name="pix_key" class="form-control form-control-lg" 
                            value="{{ user.pix_key }}" placeholder="Digite sua chave Pix">
                     <div class="form-text">Sua chave Pix para receber saques e transferências</div>
-                </div>
-                
-                <div class="mb-4">
-                    <label class="form-label">E-mail</label>
-                    <input type="email" class="form-control form-control-lg" value="{{ user.email }}" disabled>
-                    <div class="form-text">Seu e-mail de login (não pode ser alterado)</div>
                 </div>
                 
                 <button type="submit" class="btn btn-primary-modern w-100 py-3">
