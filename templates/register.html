@@ -32,7 +32,7 @@
             </div>
             {% endif %}
             
-            <form method="post" action="/register">
+            <form method="post" action="/register" id="registerForm">
                 <!-- Nome Completo -->
                 <div class="mb-3">
                     <label class="form-label">Nome Completo</label>
@@ -43,6 +43,17 @@
                                placeholder="Ex: João Silva Santos">
                     </div>
                     <div class="form-text">Digite seu nome completo (pelo menos nome e sobrenome)</div>
+                </div>
+
+                <!-- Email -->
+                <div class="mb-3">
+                    <label class="form-label">E-mail</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent"><i class="bi bi-envelope" style="color: #FF8C00;"></i></span>
+                        <input type="email" name="email" class="form-control" 
+                               value="{{ email }}" required
+                               placeholder="seu@email.com">
+                    </div>
                 </div>
 
                 <!-- CPF -->
@@ -58,27 +69,60 @@
                     <div class="form-text">Digite seu CPF com ou sem pontuação</div>
                 </div>
 
-                <!-- Email -->
+                <!-- Telefone (NOVO) -->
                 <div class="mb-3">
-                    <label class="form-label">E-mail</label>
+                    <label class="form-label">Telefone</label>
                     <div class="input-group">
-                        <span class="input-group-text bg-transparent"><i class="bi bi-envelope" style="color: #FF8C00;"></i></span>
-                        <input type="email" name="email" class="form-control" 
-                               value="{{ email }}" required
-                               placeholder="seu@email.com">
+                        <span class="input-group-text bg-transparent"><i class="bi bi-telephone" style="color: #FF8C00;"></i></span>
+                        <input type="tel" name="telefone" class="form-control" 
+                               value="{{ telefone }}" required
+                               placeholder="(11) 99999-9999" 
+                               oninput="formatarTelefone(this)">
                     </div>
+                    <div class="form-text">Digite seu telefone com DDD</div>
                 </div>
                 
                 <!-- Senha -->
-                <div class="mb-4">
+                <div class="mb-3">
                     <label class="form-label">Senha <span class="text-warning">(mínimo 5 caracteres)</span></label>
                     <div class="input-group">
                         <span class="input-group-text bg-transparent"><i class="bi bi-lock" style="color: #FF8C00;"></i></span>
-                        <input type="password" name="password" class="form-control" required minlength="5">
+                        <input type="password" name="password" id="password" class="form-control" required minlength="5" onkeyup="verificarForcaSenha()">
+                    </div>
+                    <!-- Indicador de força da senha -->
+                    <div class="mt-2">
+                        <div class="progress" style="height: 5px;">
+                            <div class="progress-bar" id="forcaSenhaBar" role="progressbar" style="width: 0%; background-color: #ff4444;"></div>
+                        </div>
+                        <small class="text-muted" id="forcaSenhaTexto">Digite uma senha</small>
                     </div>
                 </div>
+
+                <!-- Confirmar Senha (NOVO) -->
+                <div class="mb-4">
+                    <label class="form-label">Confirmar Senha</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent"><i class="bi bi-lock-fill" style="color: #FF8C00;"></i></span>
+                        <input type="password" name="confirm_password" id="confirm_password" class="form-control" required onkeyup="verificarSenhasIguais()">
+                    </div>
+                    <small class="text-danger" id="senhasNaoConferem" style="display: none;">As senhas não conferem</small>
+                    <small class="text-success" id="senhasConferem" style="display: none;">As senhas conferem</small>
+                </div>
+
+                <!-- Termos e Política de Privacidade (NOVO) -->
+                <div class="mb-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="aceitar_termos" id="aceitar_termos" required>
+                        <label class="form-check-label" for="aceitar_termos">
+                            Li e concordo com os 
+                            <a href="https://discord.gg/xGNuRUjdvJ" target="_blank" style="color: #FF8C00;">Termos de Uso</a> e 
+                            <a href="https://discord.gg/xGNuRUjdvJ" target="_blank" style="color: #FF8C00;">Política de Privacidade</a>
+                        </label>
+                    </div>
+                    <small class="text-muted">As informações estão disponíveis no nosso Discord</small>
+                </div>
                 
-                <button type="submit" class="btn btn-primary-modern w-100 py-3 mb-3">
+                <button type="submit" class="btn btn-primary-modern w-100 py-3 mb-3" id="btnRegistrar">
                     <i class="bi bi-check-circle"></i> Criar conta
                 </button>
                 
@@ -92,7 +136,7 @@
 </div>
 
 <script>
-// Função para formatar CPF enquanto digita (opcional)
+// Função para formatar CPF enquanto digita
 function formatarCPF(campo) {
     let valor = campo.value.replace(/\D/g, '');
     if (valor.length <= 11) {
@@ -108,5 +152,114 @@ function formatarCPF(campo) {
         campo.value = valor;
     }
 }
+
+// Função para formatar Telefone
+function formatarTelefone(campo) {
+    let valor = campo.value.replace(/\D/g, '');
+    if (valor.length <= 11) {
+        if (valor.length > 10) {
+            valor = valor.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+        } else if (valor.length > 6) {
+            valor = valor.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+        } else if (valor.length > 2) {
+            valor = valor.replace(/(\d{2})(\d{0,4})/, '($1) $2');
+        } else if (valor.length > 0) {
+            valor = valor.replace(/(\d{2})/, '($1');
+        }
+        campo.value = valor;
+    }
+}
+
+// Função para verificar força da senha
+function verificarForcaSenha() {
+    const senha = document.getElementById('password').value;
+    const barra = document.getElementById('forcaSenhaBar');
+    const texto = document.getElementById('forcaSenhaTexto');
+    
+    let forca = 0;
+    let cor = '#ff4444'; // vermelho
+    
+    // Verificar comprimento
+    if (senha.length >= 5) forca += 1;
+    if (senha.length >= 8) forca += 1;
+    
+    // Verificar letras maiúsculas e minúsculas
+    if (/[a-z]/.test(senha) && /[A-Z]/.test(senha)) forca += 1;
+    
+    // Verificar números
+    if (/\d/.test(senha)) forca += 1;
+    
+    // Verificar caracteres especiais
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(senha)) forca += 1;
+    
+    // Determinar força
+    if (senha.length === 0) {
+        forca = 0;
+        texto.innerText = 'Digite uma senha';
+        barra.style.width = '0%';
+        barra.style.backgroundColor = '#ff4444';
+        return;
+    }
+    
+    if (forca <= 2) {
+        texto.innerText = 'Senha Fraca';
+        cor = '#ff4444'; // vermelho
+        barra.style.width = '33%';
+    } else if (forca <= 4) {
+        texto.innerText = 'Senha Média';
+        cor = '#ffaa00'; // amarelo/laranja
+        barra.style.width = '66%';
+    } else {
+        texto.innerText = 'Senha Forte';
+        cor = '#44ff44'; // verde
+        barra.style.width = '100%';
+    }
+    
+    barra.style.backgroundColor = cor;
+}
+
+// Função para verificar se as senhas são iguais
+function verificarSenhasIguais() {
+    const senha = document.getElementById('password').value;
+    const confirmar = document.getElementById('confirm_password').value;
+    const naoConferem = document.getElementById('senhasNaoConferem');
+    const conferem = document.getElementById('senhasConferem');
+    const btnRegistrar = document.getElementById('btnRegistrar');
+    
+    if (confirmar.length > 0) {
+        if (senha === confirmar) {
+            naoConferem.style.display = 'none';
+            conferem.style.display = 'block';
+            btnRegistrar.disabled = false;
+        } else {
+            naoConferem.style.display = 'block';
+            conferem.style.display = 'none';
+            btnRegistrar.disabled = true;
+        }
+    } else {
+        naoConferem.style.display = 'none';
+        conferem.style.display = 'none';
+        btnRegistrar.disabled = false;
+    }
+}
+
+// Validação do formulário antes de enviar
+document.getElementById('registerForm').addEventListener('submit', function(event) {
+    const senha = document.getElementById('password').value;
+    const confirmar = document.getElementById('confirm_password').value;
+    const aceitarTermos = document.getElementById('aceitar_termos').checked;
+    
+    if (senha !== confirmar) {
+        event.preventDefault();
+        alert('As senhas não conferem!');
+        return;
+    }
+    
+    if (!aceitarTermos) {
+        event.preventDefault();
+        alert('Você precisa aceitar os Termos de Uso e Política de Privacidade!');
+        return;
+    }
+});
 </script>
 {% endblock %}
