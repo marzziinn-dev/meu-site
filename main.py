@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import text, func
 from database import SessionLocal, engine
-from models import Base, User, Transaction
+from models import Base, User, Transaction, AfiliadoComissao
 from auth import hash_password, verify_password, create_api_key, create_token, get_current_user
 import os
 import logging
@@ -13,9 +13,9 @@ import base64
 import requests
 import json
 import re
-from datetime import datetime, timedelta
 import random
 import string
+from datetime import datetime, timedelta
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,13 +27,30 @@ with engine.connect() as conn:
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS pix_key VARCHAR;"))
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS nome_completo VARCHAR;"))
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cpf VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS telefone VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS rota VARCHAR DEFAULT 'white';"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS codigo_afiliado VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS afiliado_por INTEGER;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS comissoes_acumuladas INTEGER DEFAULT 0;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS total_vendas INTEGER DEFAULT 0;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS total_reembolsos INTEGER DEFAULT 0;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS percentual_reembolso FLOAT DEFAULT 0.0;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS user_id INTEGER;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS transaction_id VARCHAR;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS amount INTEGER;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS final_amount INTEGER DEFAULT 0;"))
+    conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS taxa INTEGER DEFAULT 0;"))
+    conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS comissao_afiliado INTEGER DEFAULT 0;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS status VARCHAR;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS type VARCHAR;"))
     conn.execute(text("ALTER TABLE transactions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();"))
+    conn.execute(text("ALTER TABLE afiliado_comissoes ADD COLUMN IF NOT EXISTS afiliado_id INTEGER;"))
+    conn.execute(text("ALTER TABLE afiliado_comissoes ADD COLUMN IF NOT EXISTS venda_id INTEGER;"))
+    conn.execute(text("ALTER TABLE afiliado_comissoes ADD COLUMN IF NOT EXISTS valor_venda INTEGER;"))
+    conn.execute(text("ALTER TABLE afiliado_comissoes ADD COLUMN IF NOT EXISTS comissao INTEGER;"))
+    conn.execute(text("ALTER TABLE afiliado_comissoes ADD COLUMN IF NOT EXISTS pago BOOLEAN DEFAULT FALSE;"))
+    conn.execute(text("ALTER TABLE afiliado_comissoes ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();"))
     conn.commit()
 # ================================
 
@@ -59,18 +76,186 @@ def get_db():
     finally:
         db.close()
 
-# ==================== FUNÇÃO PARA VERIFICAR ACESSO DEV ====================
-SENHA_DEV = "Revolution555mwller"
+# ==================== FUNÇÕES AUXILIARES ====================
 
-def verificar_dev(request: Request):
-    """Verifica se o usuário tem acesso ao painel desenvolvedor (via cookie)"""
-    dev_token = request.cookies.get("dev_token")
-    return dev_token == "dev_logado"
+def validar_cpf(cpf: str) -> bool:
+    """Valida se um CPF é matematicamente válido"""
+    cpf = re.sub(r'[^0-9]', '', cpf)
+    
+    if len(cpf) != 11:
+        return False
+    
+    if cpf == cpf[0] * 11:
+        return False
+    
+    # Primeiro dígito
+    soma = 0
+    for i in range(9):
+        soma += int(cpf[i]) * (10 - i)
+    resto = 11 - (soma % 11)
+    if resto > 9:
+        resto = 0
+    if int(cpf[9]) != resto:
+        return False
+    
+    # Segundo dígito
+    soma = 0
+    for i in range(10):
+        soma += int(cpf[i]) * (11 - i)
+    resto = 11 - (soma % 11)
+    if resto > 9:
+        resto = 0
+    if int(cpf[10]) != resto:
+        return False
+    
+    return True
 
-# ==================== NOSSA PRÓPRIA API ====================
+def gerar_codigo_afiliado():
+    """Gera um código de afiliado único"""
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+
+def calcular_taxa(valor_centavos, rota, user):
+    """
+    Calcula a taxa baseada na rota do usuário
+    Black: 7% + R$1,00 na entrada, R$1,00 na saída
+    White: taxa padrão de 3%
+    """
+    if rota == 'black':
+        # Taxa de entrada: 7% + R$1,00
+        taxa = int(valor_centavos * 0.07) + 100
+        return taxa
+    else:  # white
+        # Taxa padrão de 3%
+        taxa = int(valor_centavos * 0.03)
+        return taxa
+
+def verificar_admin(request: Request):
+    """Verifica se o usuário tem acesso ao painel administrativo"""
+    admin_token = request.cookies.get("admin_token")
+    return admin_token == "admin_logado"
+
+# ==================== PAINEL ADMINISTRATIVO ====================
+SENHA_ADMIN = "Revolution555mwller"
+
+@app.get("/admin-painel", response_class=HTMLResponse)
+def admin_painel_login_form(request: Request, erro: str = None):
+    return templates.TemplateResponse("admin_login.html", {
+        "request": request,
+        "user_logged_in": False,
+        "erro": erro
+    })
+
+@app.post("/admin-painel")
+def admin_painel_login(request: Request, senha: str = Form(...)):
+    if senha == SENHA_ADMIN:
+        response = RedirectResponse(url="/admin-dashboard", status_code=302)
+        response.set_cookie(key="admin_token", value="admin_logado", httponly=True, secure=True, samesite="lax")
+        return response
+    else:
+        return templates.TemplateResponse("admin_login.html", {
+            "request": request,
+            "user_logged_in": False,
+            "erro": "Senha incorreta"
+        })
+
+@app.get("/admin-dashboard", response_class=HTMLResponse)
+def admin_dashboard(request: Request, db: Session = Depends(get_db)):
+    if not verificar_admin(request):
+        return RedirectResponse(url="/admin-painel", status_code=302)
+    
+    total_usuarios = db.query(User).count()
+    total_transacoes = db.query(Transaction).count()
+    saldo_total_sistema = db.query(func.sum(User.balance_available)).scalar() or 0
+    saldo_pendente_total = db.query(func.sum(User.balance_pending)).scalar() or 0
+    transacoes_hoje = db.query(Transaction).filter(
+        func.date(Transaction.created_at) == func.current_date()
+    ).count()
+    
+    ultimas_transacoes = db.query(Transaction).order_by(Transaction.id.desc()).limit(20).all()
+    usuarios = db.query(User).all()
+    
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": "ADMINISTRADOR",
+        "total_usuarios": total_usuarios,
+        "total_transacoes": total_transacoes,
+        "saldo_total_sistema": saldo_total_sistema / 100,
+        "saldo_pendente_total": saldo_pendente_total / 100,
+        "transacoes_hoje": transacoes_hoje,
+        "ultimas_transacoes": ultimas_transacoes,
+        "usuarios": usuarios
+    })
+
+@app.post("/admin/adicionar-saldo")
+def admin_adicionar_saldo(
+    request: Request,
+    user_id: int = Form(...),
+    valor: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    if not verificar_admin(request):
+        return JSONResponse({"erro": "Acesso negado"}, status_code=403)
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
+    
+    user.balance_available += valor
+    trans = Transaction(
+        user_id=user.id,
+        transaction_id=f"admin_add_{uuid.uuid4()}",
+        amount=valor,
+        final_amount=valor,
+        status="approved",
+        type="deposit"
+    )
+    db.add(trans)
+    db.commit()
+    
+    return RedirectResponse(url="/admin-dashboard", status_code=302)
+
+@app.post("/admin/remover-saldo")
+def admin_remover_saldo(
+    request: Request,
+    user_id: int = Form(...),
+    valor: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    if not verificar_admin(request):
+        return JSONResponse({"erro": "Acesso negado"}, status_code=403)
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
+    
+    if user.balance_available < valor:
+        return JSONResponse({"erro": "Saldo insuficiente"}, status_code=400)
+    
+    user.balance_available -= valor
+    trans = Transaction(
+        user_id=user.id,
+        transaction_id=f"admin_remove_{uuid.uuid4()}",
+        amount=-valor,
+        final_amount=-valor,
+        status="approved",
+        type="withdraw"
+    )
+    db.add(trans)
+    db.commit()
+    
+    return RedirectResponse(url="/admin-dashboard", status_code=302)
+
+@app.get("/admin/logout")
+def admin_logout():
+    response = RedirectResponse(url="/", status_code=302)
+    response.delete_cookie("admin_token")
+    return response
+
+# ==================== API PRÓPRIA ====================
+
 @app.get("/api/v1/saldo", response_class=JSONResponse)
 def api_saldo(request: Request, db: Session = Depends(get_db)):
-    """Endpoint da API para consultar saldo do usuário logado"""
     try:
         user_id = get_current_user(request)
     except:
@@ -88,7 +273,6 @@ def api_saldo(request: Request, db: Session = Depends(get_db)):
 
 @app.get("/api/v1/transacoes", response_class=JSONResponse)
 def api_transacoes(request: Request, limite: int = 10, db: Session = Depends(get_db)):
-    """Endpoint da API para listar transações do usuário logado"""
     try:
         user_id = get_current_user(request)
     except:
@@ -114,174 +298,28 @@ def api_transacoes(request: Request, limite: int = 10, db: Session = Depends(get
 
 @app.get("/api/v1/estatisticas", response_class=JSONResponse)
 def api_estatisticas(request: Request, db: Session = Depends(get_db)):
-    """Endpoint da API para estatísticas do usuário"""
     try:
         user_id = get_current_user(request)
     except:
         return JSONResponse({"erro": "Não autenticado"}, status_code=401)
     
-    # Total de depósitos
     total_depositos = db.query(func.sum(Transaction.final_amount)).filter(
         Transaction.user_id == user_id,
         Transaction.type == 'deposit',
         Transaction.status == 'approved'
     ).scalar() or 0
     
-    # Total de saques
     total_saques = db.query(func.sum(Transaction.final_amount)).filter(
         Transaction.user_id == user_id,
         Transaction.type == 'withdraw',
         Transaction.status == 'approved'
     ).scalar() or 0
     
-    # Total de transferências enviadas
-    total_transf_enviadas = db.query(func.sum(Transaction.final_amount)).filter(
-        Transaction.user_id == user_id,
-        Transaction.type == 'transfer_out',
-        Transaction.status == 'approved'
-    ).scalar() or 0
-    
-    # Total de transferências recebidas
-    total_transf_recebidas = db.query(func.sum(Transaction.final_amount)).filter(
-        Transaction.user_id == user_id,
-        Transaction.type == 'transfer_in',
-        Transaction.status == 'approved'
-    ).scalar() or 0
-    
     return {
         "total_depositado": abs(total_depositos) / 100,
         "total_sacado": abs(total_saques) / 100,
-        "total_transferido": abs(total_transf_enviadas) / 100,
-        "total_recebido": total_transf_recebidas / 100,
         "saldo_atual": (db.query(User).filter(User.id == user_id).first().balance_available) / 100
     }
-
-# ==================== PAINEL DESENVOLVEDOR (NO MENU PRINCIPAL) ====================
-@app.get("/dev-painel", response_class=HTMLResponse)
-def dev_painel_login_form(request: Request, erro: str = None):
-    """Página de login do painel desenvolvedor"""
-    return templates.TemplateResponse("dev_login.html", {
-        "request": request,
-        "user_logged_in": False,
-        "erro": erro
-    })
-
-@app.post("/dev-painel")
-def dev_painel_login(request: Request, senha: str = Form(...)):
-    """Faz login no painel desenvolvedor"""
-    if senha == SENHA_DEV:
-        response = RedirectResponse(url="/dev-dashboard", status_code=302)
-        response.set_cookie(key="dev_token", value="dev_logado", httponly=True, secure=True, samesite="lax")
-        return response
-    else:
-        return templates.TemplateResponse("dev_login.html", {
-            "request": request,
-            "user_logged_in": False,
-            "erro": "Senha incorreta"
-        })
-
-@app.get("/dev-dashboard", response_class=HTMLResponse)
-def dev_dashboard(request: Request, db: Session = Depends(get_db)):
-    """Dashboard do desenvolvedor"""
-    # Verifica se tem acesso dev
-    if not verificar_dev(request):
-        return RedirectResponse(url="/dev-painel", status_code=302)
-    
-    # Estatísticas gerais do sistema
-    total_usuarios = db.query(User).count()
-    total_transacoes = db.query(Transaction).count()
-    saldo_total_sistema = db.query(func.sum(User.balance_available)).scalar() or 0
-    saldo_pendente_total = db.query(func.sum(User.balance_pending)).scalar() or 0
-    transacoes_hoje = db.query(Transaction).filter(
-        func.date(Transaction.created_at) == func.current_date()
-    ).count()
-    
-    # Últimas 20 transações
-    ultimas_transacoes = db.query(Transaction).order_by(Transaction.id.desc()).limit(20).all()
-    
-    # Todos os usuários
-    usuarios = db.query(User).all()
-    
-    return templates.TemplateResponse("dev_dashboard.html", {
-        "request": request,
-        "user_logged_in": True,
-        "user_email": "DESENVOLVEDOR",
-        "total_usuarios": total_usuarios,
-        "total_transacoes": total_transacoes,
-        "saldo_total_sistema": saldo_total_sistema / 100,
-        "saldo_pendente_total": saldo_pendente_total / 100,
-        "transacoes_hoje": transacoes_hoje,
-        "ultimas_transacoes": ultimas_transacoes,
-        "usuarios": usuarios
-    })
-
-@app.post("/dev/adicionar-saldo")
-def dev_adicionar_saldo(
-    request: Request,
-    user_id: int = Form(...),
-    valor: int = Form(...),
-    db: Session = Depends(get_db)
-):
-    """Adiciona saldo a um usuário (apenas dev)"""
-    if not verificar_dev(request):
-        return JSONResponse({"erro": "Acesso negado"}, status_code=403)
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
-    
-    user.balance_available += valor
-    trans = Transaction(
-        user_id=user.id,
-        transaction_id=f"dev_add_{uuid.uuid4()}",
-        amount=valor,
-        final_amount=valor,
-        status="approved",
-        type="deposit"
-    )
-    db.add(trans)
-    db.commit()
-    
-    return RedirectResponse(url="/dev-dashboard", status_code=302)
-
-@app.post("/dev/remover-saldo")
-def dev_remover_saldo(
-    request: Request,
-    user_id: int = Form(...),
-    valor: int = Form(...),
-    db: Session = Depends(get_db)
-):
-    """Remove saldo de um usuário (apenas dev)"""
-    if not verificar_dev(request):
-        return JSONResponse({"erro": "Acesso negado"}, status_code=403)
-    
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
-    
-    if user.balance_available < valor:
-        return JSONResponse({"erro": "Saldo insuficiente"}, status_code=400)
-    
-    user.balance_available -= valor
-    trans = Transaction(
-        user_id=user.id,
-        transaction_id=f"dev_remove_{uuid.uuid4()}",
-        amount=-valor,
-        final_amount=-valor,
-        status="approved",
-        type="withdraw"
-    )
-    db.add(trans)
-    db.commit()
-    
-    return RedirectResponse(url="/dev-dashboard", status_code=302)
-
-@app.get("/dev/logout")
-def dev_logout():
-    """Sair do painel desenvolvedor"""
-    response = RedirectResponse(url="/", status_code=302)
-    response.delete_cookie("dev_token")
-    return response
 
 # ==================== ROTAS NORMAIS DO SITE ====================
 
@@ -297,7 +335,8 @@ def root(request: Request):
 
 @app.get("/register", response_class=HTMLResponse)
 def register_form(request: Request, erro: str = None, sucesso: str = None, 
-                 nome_completo: str = "", cpf: str = "", email: str = "", telefone: str = ""):
+                 nome_completo: str = "", cpf: str = "", email: str = "", 
+                 telefone: str = "", codigo_afiliado: str = ""):
     return templates.TemplateResponse("register.html", {
         "request": request,
         "user_logged_in": False,
@@ -306,7 +345,8 @@ def register_form(request: Request, erro: str = None, sucesso: str = None,
         "nome_completo": nome_completo,
         "cpf": cpf,
         "email": email,
-        "telefone": telefone
+        "telefone": telefone,
+        "codigo_afiliado": codigo_afiliado
     })
 
 @app.post("/register")
@@ -315,10 +355,12 @@ def register(
     nome_completo: str = Form(...),
     cpf: str = Form(...),
     email: str = Form(...),
-    telefone: str = Form(...),  # NOVO
+    telefone: str = Form(...),
     password: str = Form(...),
-    confirm_password: str = Form(...),  # NOVO
-    aceitar_termos: str = Form(...),  # NOVO (vai vir "on" se marcado)
+    confirm_password: str = Form(...),
+    aceitar_termos: str = Form(...),
+    rota: str = Form(...),
+    codigo_afiliado: str = Form(None),
     db: Session = Depends(get_db)
 ):
     logger.info(f"Novo registro: {email}")
@@ -332,7 +374,8 @@ def register(
             "nome_completo": nome_completo,
             "cpf": cpf,
             "email": email,
-            "telefone": telefone
+            "telefone": telefone,
+            "codigo_afiliado": codigo_afiliado
         })
     
     # ===== VALIDAÇÃO DA CONFIRMAÇÃO DE SENHA =====
@@ -344,7 +387,8 @@ def register(
             "nome_completo": nome_completo,
             "cpf": cpf,
             "email": email,
-            "telefone": telefone
+            "telefone": telefone,
+            "codigo_afiliado": codigo_afiliado
         })
     
     # ===== VALIDAÇÃO DO NOME COMPLETO =====
@@ -359,7 +403,8 @@ def register(
             "nome_completo": nome_completo,
             "cpf": cpf,
             "email": email,
-            "telefone": telefone
+            "telefone": telefone,
+            "codigo_afiliado": codigo_afiliado
         })
     
     for parte in partes:
@@ -371,19 +416,8 @@ def register(
                 "nome_completo": nome_completo,
                 "cpf": cpf,
                 "email": email,
-                "telefone": telefone
-            })
-    
-    for parte in partes:
-        if len(parte) < 2:
-            return templates.TemplateResponse("register.html", {
-                "request": request,
-                "user_logged_in": False,
-                "erro": "Cada parte do nome deve ter pelo menos 2 letras",
-                "nome_completo": nome_completo,
-                "cpf": cpf,
-                "email": email,
-                "telefone": telefone
+                "telefone": telefone,
+                "codigo_afiliado": codigo_afiliado
             })
     
     # ===== VALIDAÇÃO DO CPF =====
@@ -397,7 +431,8 @@ def register(
             "nome_completo": nome_completo,
             "cpf": cpf,
             "email": email,
-            "telefone": telefone
+            "telefone": telefone,
+            "codigo_afiliado": codigo_afiliado
         })
     
     if not validar_cpf(cpf_limpo):
@@ -408,27 +443,9 @@ def register(
             "nome_completo": nome_completo,
             "cpf": cpf,
             "email": email,
-            "telefone": telefone
+            "telefone": telefone,
+            "codigo_afiliado": codigo_afiliado
         })
-# Função para gerar código de afiliado único
-def gerar_codigo_afiliado():
-    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
-
-# Função para calcular taxa baseada na rota
-def calcular_taxa(valor_centavos, rota, user):
-    """
-    Calcula a taxa baseada na rota do usuário
-    Black: 7% + R$1,00 na entrada, R$1,00 na saída
-    White: taxa padrão de 3%
-    """
-    if rota == 'black':
-        # Taxa de entrada: 7% + R$1,00
-        taxa = int(valor_centavos * 0.07) + 100  # 100 centavos = R$1,00
-        return taxa
-    else:  # white
-        # Taxa padrão de 3%
-        taxa = int(valor_centavos * 0.03)
-        return taxa
     
     # ===== VALIDAÇÃO DO TELEFONE =====
     telefone_limpo = re.sub(r'[^0-9]', '', telefone)
@@ -440,7 +457,8 @@ def calcular_taxa(valor_centavos, rota, user):
             "nome_completo": nome_completo,
             "cpf": cpf,
             "email": email,
-            "telefone": telefone
+            "telefone": telefone,
+            "codigo_afiliado": codigo_afiliado
         })
     
     # ===== VALIDAÇÃO DA SENHA =====
@@ -452,7 +470,8 @@ def calcular_taxa(valor_centavos, rota, user):
             "nome_completo": nome_completo,
             "cpf": cpf,
             "email": email,
-            "telefone": telefone
+            "telefone": telefone,
+            "codigo_afiliado": codigo_afiliado
         })
     
     # ===== VALIDAÇÕES DE DUPLICIDADE =====
@@ -464,7 +483,8 @@ def calcular_taxa(valor_centavos, rota, user):
             "nome_completo": nome_completo,
             "cpf": cpf,
             "email": email,
-            "telefone": telefone
+            "telefone": telefone,
+            "codigo_afiliado": codigo_afiliado
         })
     
     if db.query(User).filter(User.cpf == cpf_limpo).first():
@@ -475,24 +495,36 @@ def calcular_taxa(valor_centavos, rota, user):
             "nome_completo": nome_completo,
             "cpf": cpf,
             "email": email,
-            "telefone": telefone
+            "telefone": telefone,
+            "codigo_afiliado": codigo_afiliado
         })
+    
+    # ===== PROCESSAR CÓDIGO DO AFILIADO =====
+    afiliado_por_id = None
+    if codigo_afiliado:
+        afiliado = db.query(User).filter(User.codigo_afiliado == codigo_afiliado).first()
+        if afiliado:
+            afiliado_por_id = afiliado.id
+            logger.info(f"Usuário cadastrado com indicação do afiliado {afiliado.email}")
     
     # ===== CRIAÇÃO DO USUÁRIO =====
     user = User(
         nome_completo=nome_completo,
         cpf=cpf_limpo,
         email=email,
-        telefone=telefone_limpo,  # salva apenas números
+        telefone=telefone_limpo,
         password=hash_password(password),
-        api_key=create_api_key()
+        api_key=create_api_key(),
+        rota=rota,
+        codigo_afiliado=gerar_codigo_afiliado(),
+        afiliado_por=afiliado_por_id
     )
     db.add(user)
     db.commit()
     db.refresh(user)
     
     token = create_token({"sub": user.id})
-    logger.info(f"Token gerado no registro: {token[:20]}...")
+    logger.info(f"Usuário criado: ID {user.id}, rota {rota}, código afiliado {user.codigo_afiliado}")
     
     response = RedirectResponse(url="/dashboard", status_code=302)
     response.set_cookie(
@@ -508,7 +540,7 @@ def calcular_taxa(valor_centavos, rota, user):
 @app.get("/login", response_class=HTMLResponse)
 def login_form(request: Request, erro: str = None, email: str = ""):
     return templates.TemplateResponse("login.html", {
-        "request": request,
+      "request": request,
         "user_logged_in": False,
         "erro": erro,
         "email": email
@@ -545,60 +577,29 @@ def login(request: Request, email: str = Form(...), password: str = Form(...), d
 def dashboard(request: Request, db: Session = Depends(get_db)):
     try:
         user_id = get_current_user(request)
-        logger.info(f"Autenticação OK, user_id: {user_id}")
-    except HTTPException as e:
-        logger.warning(f"Falha na autenticação: {e.detail}")
+    except HTTPException:
         return RedirectResponse(url="/")
     
     user = db.query(User).filter(User.id == user_id).first()
     
-    # ===== ESTATÍSTICAS EM TEMPO REAL =====
-    # Total de depósitos (aprovados)
+    # Estatísticas
     total_depositos = db.query(func.sum(Transaction.final_amount)).filter(
         Transaction.user_id == user_id,
         Transaction.type == 'deposit',
         Transaction.status == 'approved'
     ).scalar() or 0
     
-    # Total de saques
     total_saques = db.query(func.sum(Transaction.final_amount)).filter(
         Transaction.user_id == user_id,
         Transaction.type == 'withdraw',
         Transaction.status == 'approved'
     ).scalar() or 0
     
-    # Total de transferências enviadas
-    total_transf_enviadas = db.query(func.sum(Transaction.final_amount)).filter(
-        Transaction.user_id == user_id,
-        Transaction.type == 'transfer_out',
-        Transaction.status == 'approved'
-    ).scalar() or 0
-    
-    # Total de transferências recebidas
-    total_transf_recebidas = db.query(func.sum(Transaction.final_amount)).filter(
-        Transaction.user_id == user_id,
-        Transaction.type == 'transfer_in',
-        Transaction.status == 'approved'
-    ).scalar() or 0
-    
-    # Transações recentes (últimas 5)
     transacoes_recentes = db.query(Transaction).filter(
         Transaction.user_id == user_id,
         Transaction.status == 'approved'
     ).order_by(Transaction.id.desc()).limit(5).all()
     
-    # Estatísticas por período
-    hoje = datetime.now().date()
-    inicio_mes = hoje.replace(day=1)
-    
-    depositos_mes = db.query(func.sum(Transaction.final_amount)).filter(
-        Transaction.user_id == user_id,
-        Transaction.type == 'deposit',
-        Transaction.status == 'approved',
-        func.date(Transaction.created_at) >= inicio_mes
-    ).scalar() or 0
-    
-    # Formata as transações para o template
     transacoes_formatadas = []
     for t in transacoes_recentes:
         transacoes_formatadas.append({
@@ -618,11 +619,33 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
         "pending": user.balance_pending / 100,
         "total_depositos": abs(total_depositos) / 100,
         "total_saques": abs(total_saques) / 100,
-        "total_transf_enviadas": abs(total_transf_enviadas) / 100,
-        "total_transf_recebidas": total_transf_recebidas / 100,
-        "depositos_mes": depositos_mes / 100,
         "transacoes_recentes": transacoes_formatadas,
-        "tem_acesso_dev": verificar_dev(request)
+        "tem_acesso_admin": verificar_admin(request)
+    })
+
+@app.get("/afiliados", response_class=HTMLResponse)
+def pagina_afiliados(request: Request, db: Session = Depends(get_db)):
+    try:
+        user_id = get_current_user(request)
+    except:
+        return RedirectResponse(url="/")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    comissoes = db.query(AfiliadoComissao).filter(AfiliadoComissao.afiliado_id == user_id).all()
+    indicacoes = db.query(User).filter(User.afiliado_por == user_id).all()
+    link_afiliado = f"https://{request.url.hostname}/register?ref={user.codigo_afiliado}"
+    
+    return templates.TemplateResponse("afiliados.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": user.email,
+        "user_nome": user.nome_completo,
+        "codigo_afiliado": user.codigo_afiliado,
+        "link_afiliado": link_afiliado,
+        "comissoes": comissoes,
+        "indicacoes": indicacoes,
+        "comissoes_acumuladas": user.comissoes_acumuladas / 100
     })
 
 @app.get("/api/verificar-transacao/{transaction_id}")
@@ -980,39 +1003,3 @@ def logout():
     response = RedirectResponse("/", 302)
     response.delete_cookie("access_token")
     return response
-
-# Função para validar CPF (matematicamente)
-def validar_cpf(cpf: str) -> bool:
-    """Valida se um CPF é matematicamente válido"""
-    # Remove caracteres não numéricos
-    cpf = re.sub(r'[^0-9]', '', cpf)
-    
-    # Verifica se tem 11 dígitos
-    if len(cpf) != 11:
-        return False
-    
-    # Verifica se todos os dígitos são iguais (ex: 111.111.111-11)
-    if cpf == cpf[0] * 11:
-        return False
-    
-    # Validação do primeiro dígito verificador
-    soma = 0
-    for i in range(9):
-        soma += int(cpf[i]) * (10 - i)
-    resto = 11 - (soma % 11)
-    if resto > 9:
-        resto = 0
-    if int(cpf[9]) != resto:
-        return False
-    
-    # Validação do segundo dígito verificador
-    soma = 0
-    for i in range(10):
-        soma += int(cpf[i]) * (11 - i)
-    resto = 11 - (soma % 11)
-    if resto > 9:
-        resto = 0
-    if int(cpf[10]) != resto:
-        return False
-    
-    return True
