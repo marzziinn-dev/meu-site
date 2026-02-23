@@ -410,6 +410,25 @@ def register(
             "email": email,
             "telefone": telefone
         })
+# Função para gerar código de afiliado único
+def gerar_codigo_afiliado():
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+
+# Função para calcular taxa baseada na rota
+def calcular_taxa(valor_centavos, rota, user):
+    """
+    Calcula a taxa baseada na rota do usuário
+    Black: 7% + R$1,00 na entrada, R$1,00 na saída
+    White: taxa padrão de 3%
+    """
+    if rota == 'black':
+        # Taxa de entrada: 7% + R$1,00
+        taxa = int(valor_centavos * 0.07) + 100  # 100 centavos = R$1,00
+        return taxa
+    else:  # white
+        # Taxa padrão de 3%
+        taxa = int(valor_centavos * 0.03)
+        return taxa
     
     # ===== VALIDAÇÃO DO TELEFONE =====
     telefone_limpo = re.sub(r'[^0-9]', '', telefone)
