@@ -12,7 +12,7 @@
                 <p class="text-muted">Preencha seus dados para começar</p>
             </div>
             
-            <!-- Mensagens de erro (se houver) -->
+            <!-- Mensagem de erro -->
             {% if erro %}
             <div class="alert alert-danger d-flex align-items-center gap-2 mb-4">
                 <i class="bi bi-exclamation-triangle-fill"></i>
@@ -22,6 +22,7 @@
             </div>
             {% endif %}
             
+            <!-- Mensagem de sucesso -->
             {% if sucesso %}
             <div class="alert alert-success d-flex align-items-center gap-2 mb-4">
                 <i class="bi bi-check-circle-fill"></i>
@@ -38,7 +39,7 @@
                     <div class="input-group">
                         <span class="input-group-text bg-transparent"><i class="bi bi-person" style="color: #FF8C00;"></i></span>
                         <input type="text" name="nome_completo" class="form-control" 
-                               value="{{ nome_completo or '' }}" required autofocus
+                               value="{{ nome_completo }}" required autofocus
                                placeholder="Ex: João Silva Santos">
                     </div>
                     <div class="form-text">Digite seu nome completo (pelo menos nome e sobrenome)</div>
@@ -50,7 +51,7 @@
                     <div class="input-group">
                         <span class="input-group-text bg-transparent"><i class="bi bi-credit-card" style="color: #FF8C00;"></i></span>
                         <input type="text" name="cpf" class="form-control" 
-                               value="{{ cpf or '' }}" required
+                               value="{{ cpf }}" required
                                placeholder="123.456.789-00" 
                                oninput="formatarCPF(this)">
                     </div>
@@ -63,17 +64,17 @@
                     <div class="input-group">
                         <span class="input-group-text bg-transparent"><i class="bi bi-envelope" style="color: #FF8C00;"></i></span>
                         <input type="email" name="email" class="form-control" 
-                               value="{{ email or '' }}" required
+                               value="{{ email }}" required
                                placeholder="seu@email.com">
                     </div>
                 </div>
                 
                 <!-- Senha -->
                 <div class="mb-4">
-                    <label class="form-label">Senha</label>
+                    <label class="form-label">Senha <span class="text-warning">(mínimo 5 caracteres)</span></label>
                     <div class="input-group">
                         <span class="input-group-text bg-transparent"><i class="bi bi-lock" style="color: #FF8C00;"></i></span>
-                        <input type="password" name="password" class="form-control" required>
+                        <input type="password" name="password" class="form-control" required minlength="5">
                     </div>
                 </div>
                 
