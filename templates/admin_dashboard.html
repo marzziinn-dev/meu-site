@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Painel Desenvolvedor{% endblock %}
+{% block title %}Painel Administrativo{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
         <div class="card-modern gradient-bg text-center py-4">
-            <h2 class="fw-bold"><i class="bi bi-code-square"></i> Painel do Desenvolvedor</h2>
+            <h2 class="fw-bold"><i class="bi bi-shield-lock"></i> Painel do Administrador</h2>
             <p class="lead mb-0">Controle total do sistema</p>
         </div>
     </div>
@@ -44,14 +44,14 @@
     </div>
 </div>
 
-<!-- Ações Rápidas Dev -->
+<!-- Ações Rápidas Admin -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card-modern">
-            <h5 class="mb-3"><i class="bi bi-tools" style="color: #FF8C00;"></i> Ferramentas de Desenvolvedor</h5>
+            <h5 class="mb-3"><i class="bi bi-tools" style="color: #FF8C00;"></i> Ferramentas Administrativas</h5>
             <div class="row">
                 <div class="col-md-6">
-                    <form method="post" action="/dev/adicionar-saldo" class="border p-3 rounded mb-3">
+                    <form method="post" action="/admin/adicionar-saldo" class="border p-3 rounded mb-3">
                         <h6 class="text-success"><i class="bi bi-plus-circle"></i> Adicionar Saldo</h6>
                         <div class="row g-2">
                             <div class="col-md-6">
@@ -72,7 +72,7 @@
                     </form>
                 </div>
                 <div class="col-md-6">
-                    <form method="post" action="/dev/remover-saldo" class="border p-3 rounded mb-3">
+                    <form method="post" action="/admin/remover-saldo" class="border p-3 rounded mb-3">
                         <h6 class="text-danger"><i class="bi bi-dash-circle"></i> Remover Saldo</h6>
                         <div class="row g-2">
                             <div class="col-md-6">
@@ -165,5 +165,11 @@
             </tbody>
         </table>
     </div>
+</div>
+
+<div class="text-end mt-3">
+    <a href="/admin/logout" class="btn btn-outline-danger">
+        <i class="bi bi-box-arrow-right"></i> Sair do Painel Admin
+    </a>
 </div>
 {% endblock %}
