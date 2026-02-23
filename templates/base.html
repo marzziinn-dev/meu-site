@@ -153,6 +153,16 @@
             color: #000000;
         }
 
+        .dev-badge {
+            background: #FF8C00;
+            color: #000000;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
         .menu-overlay {
             position: fixed;
             top: 0;
@@ -263,6 +273,26 @@
             color: #000000;
         }
 
+        .btn-dev {
+            background: #FF8C00;
+            color: #000000;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 50px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(255, 140, 0, 0.3);
+        }
+
+        .btn-dev:hover {
+            background: #e67e00;
+            transform: translateY(-2px);
+            color: #000000;
+        }
+
         /* Badges */
         .badge-modern {
             padding: 5px 12px;
@@ -318,6 +348,18 @@
             background-color: #222222;
             border: 1px solid #5865F2;
             color: #5865F2;
+        }
+
+        .alert-danger {
+            background-color: #442222;
+            border: 1px solid #ff4444;
+            color: #ff8888;
+        }
+
+        .alert-success {
+            background-color: #224422;
+            border: 1px solid #44ff44;
+            color: #88ff88;
         }
 
         /* Tabelas */
@@ -434,6 +476,22 @@
                     Configurações
                 </a>
             </li>
+            {% if tem_acesso_dev %}
+            <li>
+                <a href="/dev-dashboard">
+                    <i class="bi bi-code-square"></i>
+                    Painel Desenvolvedor
+                    <span class="dev-badge">DEV</span>
+                </a>
+            </li>
+            {% else %}
+            <li>
+                <a href="/dev-painel">
+                    <i class="bi bi-code-square"></i>
+                    Acesso Dev
+                </a>
+            </li>
+            {% endif %}
             <li class="mt-4">
                 <a href="/logout" style="color: #FF8C00;">
                     <i class="bi bi-box-arrow-right"></i>
@@ -472,8 +530,13 @@
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="/settings"><i class="bi bi-gear"></i> Configurações</a></li>
+                            {% if tem_acesso_dev %}
+                            <li><a class="dropdown-item" href="/dev-dashboard"><i class="bi bi-code-square"></i> Painel Dev</a></li>
+                            {% else %}
+                            <li><a class="dropdown-item" href="/dev-painel"><i class="bi bi-code-square"></i> Acesso Dev</a></li>
+                            {% endif %}
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/logout"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
+                            <li><a class="dropdown-item text-danger" href="/logout"><i class="bi bi-box-arrow-right"></i> Sair</a></li>
                         </ul>
                     </div>
                 </div>
@@ -489,7 +552,7 @@
         <footer class="footer">
             <div class="container text-center">
                 <p class="mb-0">
-                    © 2026 Revolution Pay. Todos os direitos reservados.
+                    © 2025 Revolution Pay. Todos os direitos reservados.
                 </p>
                 <p class="small mb-0">
                     <i class="bi bi-shield-check"></i> Pagamentos 100% seguros
