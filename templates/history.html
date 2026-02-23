@@ -5,14 +5,14 @@
 {% block content %}
 <div class="card-modern">
     <div class="d-flex align-items-center gap-3 mb-4">
-        <i class="bi bi-clock-history fs-1 text-primary"></i>
-        <h2 class="fw-bold mb-0">Histórico de Transações</h2>
+        <i class="bi bi-clock-history fs-1" style="color: #FF8C00;"></i>
+        <h2 class="fw-bold mb-0" style="color: #FF8C00;">Histórico de Transações</h2>
     </div>
     
     {% if transactions %}
     <div class="table-responsive">
-        <table class="table table-hover align-middle">
-            <thead class="bg-light">
+        <table class="table table-hover">
+            <thead>
                 <tr>
                     <th>ID</th>
                     <th>Tipo</th>
@@ -27,9 +27,9 @@
                     <td><span class="badge bg-secondary">#{{ t.id }}</span></td>
                     <td>
                         {% if t.type == 'deposit' %}
-                            <span class="badge badge-success"><i class="bi bi-arrow-down"></i> Depósito</span>
+                            <span class="badge bg-success"><i class="bi bi-arrow-down"></i> Depósito</span>
                         {% elif t.type == 'withdraw' %}
-                            <span class="badge badge-warning"><i class="bi bi-arrow-up"></i> Saque</span>
+                            <span class="badge bg-warning text-dark"><i class="bi bi-arrow-up"></i> Saque</span>
                         {% elif t.type == 'transfer_in' %}
                             <span class="badge bg-info"><i class="bi bi-arrow-left"></i> Transferência recebida</span>
                         {% elif t.type == 'transfer_out' %}
