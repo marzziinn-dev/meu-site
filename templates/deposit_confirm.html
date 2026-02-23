@@ -1,22 +1,21 @@
 {% extends "base.html" %}
+
 {% block title %}Confirmar Depósito{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-6">
-        <div class="card">
-            <div class="card-header bg-success text-white">
-                <i class="bi bi-check-circle"></i> Pagamento gerado
+        <div class="card-modern text-center">
+            <div class="card-header bg-success text-white py-3">
+                <i class="bi bi-check-circle fs-1"></i>
+                <h4 class="mt-2">Pagamento gerado</h4>
             </div>
-            <div class="card-body text-center">
-                <!-- Mensagem inicial -->
+            <div class="card-body">
                 <div class="alert alert-info" id="avisoInicial">
                     <i class="bi bi-info-circle"></i>
                     Após o pagamento, clique em "Verificar pagamento" para confirmar.
-                    <br>
-                    <small>Taxa de 3% já descontada.</small>
                 </div>
                 
-                <!-- Mensagem de sucesso (inicia oculta) -->
                 <div class="alert alert-success" id="msgSucesso" style="display: none;">
                     <i class="bi bi-check-circle-fill"></i>
                     <strong>Pagamento confirmado!</strong> O saldo já está disponível.
@@ -24,20 +23,16 @@
                     <a href="/dashboard" class="alert-link">Ir para o Dashboard</a>
                 </div>
                 
-                <!-- Mensagem de pendente (inicia oculta) -->
                 <div class="alert alert-warning" id="msgPendente" style="display: none;">
                     <i class="bi bi-hourglass-split"></i>
                     <strong>Pagamento ainda não identificado.</strong>
                     <br>
-                    <small>O Pix pode levar alguns segundos para ser processado. Tente novamente em instantes.</small>
+                    <small>Tente novamente em instantes.</small>
                 </div>
                 
-                <!-- Mensagem de erro (inicia oculta) -->
                 <div class="alert alert-danger" id="msgErro" style="display: none;">
                     <i class="bi bi-exclamation-triangle"></i>
                     <strong>Erro ao verificar pagamento.</strong>
-                    <br>
-                    <small>Tente novamente mais tarde.</small>
                 </div>
                 
                 <h5 class="mb-3">Valor a pagar: <strong class="text-success">R$ {{ "%.2f"|format(amount) }}</strong></h5>
@@ -57,10 +52,10 @@
                 </div>
                 
                 <div class="d-grid gap-2">
-                    <button class="btn btn-primary" onclick="verificarPagamento()" id="btnVerificar">
+                    <button class="btn btn-primary-modern" onclick="verificarPagamento()" id="btnVerificar">
                         <i class="bi bi-arrow-repeat"></i> Verificar pagamento
                     </button>
-                    <a href="/dashboard" class="btn btn-outline-secondary">
+                    <a href="/dashboard" class="btn btn-outline-modern">
                         <i class="bi bi-arrow-left"></i> Voltar ao Dashboard
                     </a>
                 </div>
@@ -81,7 +76,6 @@ function verificarPagamento() {
     btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Verificando...';
     btn.disabled = true;
     
-    // Esconde mensagens anteriores
     document.getElementById('msgSucesso').style.display = 'none';
     document.getElementById('msgPendente').style.display = 'none';
     document.getElementById('msgErro').style.display = 'none';
@@ -108,7 +102,6 @@ function verificarPagamento() {
         });
 }
 
-// Opcional: verifica automaticamente a cada 30 segundos
 setInterval(verificarPagamento, 30000);
 </script>
 {% endblock %}
