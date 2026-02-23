@@ -14,6 +14,8 @@ import requests
 import json
 import re
 from datetime import datetime, timedelta
+import random
+import string
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
