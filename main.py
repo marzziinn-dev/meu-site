@@ -294,7 +294,8 @@ def root(request: Request):
     return templates.TemplateResponse("login.html", {"request": request, "user_logged_in": False})
 
 @app.get("/register", response_class=HTMLResponse)
-def register_form(request: Request, erro: str = None, sucesso: str = None, nome_completo: str = "", cpf: str = "", email: str = ""):
+def register_form(request: Request, erro: str = None, sucesso: str = None, 
+                 nome_completo: str = "", cpf: str = "", email: str = "", telefone: str = ""):
     return templates.TemplateResponse("register.html", {
         "request": request,
         "user_logged_in": False,
@@ -302,7 +303,8 @@ def register_form(request: Request, erro: str = None, sucesso: str = None, nome_
         "sucesso": sucesso,
         "nome_completo": nome_completo,
         "cpf": cpf,
-        "email": email
+        "email": email,
+        "telefone": telefone
     })
 
 @app.post("/register")
@@ -311,10 +313,37 @@ def register(
     nome_completo: str = Form(...),
     cpf: str = Form(...),
     email: str = Form(...),
+    telefone: str = Form(...),  # NOVO
     password: str = Form(...),
+    confirm_password: str = Form(...),  # NOVO
+    aceitar_termos: str = Form(...),  # NOVO (vai vir "on" se marcado)
     db: Session = Depends(get_db)
 ):
     logger.info(f"Novo registro: {email}")
+    
+    # ===== VALIDAÇÃO DOS TERMOS =====
+    if aceitar_termos != "on":
+        return templates.TemplateResponse("register.html", {
+            "request": request,
+            "user_logged_in": False,
+            "erro": "Você precisa aceitar os Termos de Uso e Política de Privacidade.",
+            "nome_completo": nome_completo,
+            "cpf": cpf,
+            "email": email,
+            "telefone": telefone
+        })
+    
+    # ===== VALIDAÇÃO DA CONFIRMAÇÃO DE SENHA =====
+    if password != confirm_password:
+        return templates.TemplateResponse("register.html", {
+            "request": request,
+            "user_logged_in": False,
+            "erro": "As senhas não conferem.",
+            "nome_completo": nome_completo,
+            "cpf": cpf,
+            "email": email,
+            "telefone": telefone
+        })
     
     # ===== VALIDAÇÃO DO NOME COMPLETO =====
     nome_completo = nome_completo.strip()
@@ -327,7 +356,8 @@ def register(
             "erro": "Nome completo deve conter pelo menos nome e sobrenome (ex: João Silva)",
             "nome_completo": nome_completo,
             "cpf": cpf,
-            "email": email
+            "email": email,
+            "telefone": telefone
         })
     
     for parte in partes:
@@ -338,7 +368,8 @@ def register(
                 "erro": "Nome deve conter apenas letras (sem números ou caracteres especiais)",
                 "nome_completo": nome_completo,
                 "cpf": cpf,
-                "email": email
+                "email": email,
+                "telefone": telefone
             })
     
     for parte in partes:
@@ -349,7 +380,8 @@ def register(
                 "erro": "Cada parte do nome deve ter pelo menos 2 letras",
                 "nome_completo": nome_completo,
                 "cpf": cpf,
-                "email": email
+                "email": email,
+                "telefone": telefone
             })
     
     # ===== VALIDAÇÃO DO CPF =====
@@ -362,7 +394,8 @@ def register(
             "erro": "CPF deve conter 11 dígitos numéricos (ex: 123.456.789-00)",
             "nome_completo": nome_completo,
             "cpf": cpf,
-            "email": email
+            "email": email,
+            "telefone": telefone
         })
     
     if not validar_cpf(cpf_limpo):
@@ -372,7 +405,21 @@ def register(
             "erro": "CPF inválido. Digite um CPF válido.",
             "nome_completo": nome_completo,
             "cpf": cpf,
-            "email": email
+            "email": email,
+            "telefone": telefone
+        })
+    
+    # ===== VALIDAÇÃO DO TELEFONE =====
+    telefone_limpo = re.sub(r'[^0-9]', '', telefone)
+    if len(telefone_limpo) < 10 or len(telefone_limpo) > 11:
+        return templates.TemplateResponse("register.html", {
+            "request": request,
+            "user_logged_in": False,
+            "erro": "Telefone inválido. Digite um número com DDD (ex: 11999999999)",
+            "nome_completo": nome_completo,
+            "cpf": cpf,
+            "email": email,
+            "telefone": telefone
         })
     
     # ===== VALIDAÇÃO DA SENHA =====
@@ -383,7 +430,8 @@ def register(
             "erro": "A senha deve ter no mínimo 5 caracteres.",
             "nome_completo": nome_completo,
             "cpf": cpf,
-            "email": email
+            "email": email,
+            "telefone": telefone
         })
     
     # ===== VALIDAÇÕES DE DUPLICIDADE =====
@@ -394,7 +442,8 @@ def register(
             "erro": "Email já cadastrado. Tente outro email.",
             "nome_completo": nome_completo,
             "cpf": cpf,
-            "email": email
+            "email": email,
+            "telefone": telefone
         })
     
     if db.query(User).filter(User.cpf == cpf_limpo).first():
@@ -404,7 +453,8 @@ def register(
             "erro": "CPF já cadastrado em outra conta.",
             "nome_completo": nome_completo,
             "cpf": cpf,
-            "email": email
+            "email": email,
+            "telefone": telefone
         })
     
     # ===== CRIAÇÃO DO USUÁRIO =====
@@ -412,6 +462,7 @@ def register(
         nome_completo=nome_completo,
         cpf=cpf_limpo,
         email=email,
+        telefone=telefone_limpo,  # salva apenas números
         password=hash_password(password),
         api_key=create_api_key()
     )
