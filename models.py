@@ -9,6 +9,7 @@ class User(Base):
     nome_completo = Column(String, nullable=False)
     cpf = Column(String, unique=True, nullable=False)
     email = Column(String, unique=True, nullable=False)
+    telefone = Column(String, nullable=False)  # NOVO CAMPO
     password = Column(String, nullable=False)
     api_key = Column(String, unique=True)
     balance_available = Column(Integer, default=0)
