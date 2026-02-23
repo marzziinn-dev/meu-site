@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, func
 from database import SessionLocal, engine
 from models import Base, User, Transaction
 from auth import hash_password, verify_password, create_api_key, create_token, get_current_user
@@ -13,6 +13,7 @@ import base64
 import requests
 import json
 import re
+from datetime import datetime, timedelta
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -56,109 +57,181 @@ def get_db():
     finally:
         db.close()
 
-def get_admin(request: Request):
-    """Verifica se o usuário é admin (pelo cookie)"""
-    admin_token = request.cookies.get("admin_token")
-    if admin_token != "admin_logado":
-        raise HTTPException(status_code=401, detail="Acesso negado")
-    return True
+# ==================== FUNÇÃO PARA VERIFICAR ACESSO DEV ====================
+SENHA_DEV = "Revolution555mwller"
 
-# Função para validar CPF (matematicamente)
-def validar_cpf(cpf: str) -> bool:
-    """Valida se um CPF é matematicamente válido"""
-    # Remove caracteres não numéricos
-    cpf = re.sub(r'[^0-9]', '', cpf)
-    
-    # Verifica se tem 11 dígitos
-    if len(cpf) != 11:
-        return False
-    
-    # Verifica se todos os dígitos são iguais (ex: 111.111.111-11)
-    if cpf == cpf[0] * 11:
-        return False
-    
-    # Validação do primeiro dígito verificador
-    soma = 0
-    for i in range(9):
-        soma += int(cpf[i]) * (10 - i)
-    resto = 11 - (soma % 11)
-    if resto > 9:
-        resto = 0
-    if int(cpf[9]) != resto:
-        return False
-    
-    # Validação do segundo dígito verificador
-    soma = 0
-    for i in range(10):
-        soma += int(cpf[i]) * (11 - i)
-    resto = 11 - (soma % 11)
-    if resto > 9:
-        resto = 0
-    if int(cpf[10]) != resto:
-        return False
-    
-    return True
+def verificar_dev(request: Request):
+    """Verifica se o usuário tem acesso ao painel desenvolvedor (via cookie)"""
+    dev_token = request.cookies.get("dev_token")
+    return dev_token == "dev_logado"
 
-# ==================== PAINEL ADMIN SECRETO ====================
-SENHA_ADMIN = "Revolution555mwller"
+# ==================== NOSSA PRÓPRIA API ====================
+@app.get("/api/v1/saldo", response_class=JSONResponse)
+def api_saldo(request: Request, db: Session = Depends(get_db)):
+    """Endpoint da API para consultar saldo do usuário logado"""
+    try:
+        user_id = get_current_user(request)
+    except:
+        return JSONResponse({"erro": "Não autenticado"}, status_code=401)
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "nome": user.nome_completo,
+        "saldo_disponivel": user.balance_available / 100,
+        "saldo_pendente": user.balance_pending / 100,
+        "moeda": "BRL"
+    }
 
-@app.get("/admin-painel-9f3k2d", response_class=HTMLResponse)
-def admin_login_form(request: Request):
-    return templates.TemplateResponse("admin_login.html", {
+@app.get("/api/v1/transacoes", response_class=JSONResponse)
+def api_transacoes(request: Request, limite: int = 10, db: Session = Depends(get_db)):
+    """Endpoint da API para listar transações do usuário logado"""
+    try:
+        user_id = get_current_user(request)
+    except:
+        return JSONResponse({"erro": "Não autenticado"}, status_code=401)
+    
+    transacoes = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.status == "approved"
+    ).order_by(Transaction.id.desc()).limit(limite).all()
+    
+    resultado = []
+    for t in transacoes:
+        resultado.append({
+            "id": t.id,
+            "transaction_id": t.transaction_id,
+            "tipo": t.type,
+            "valor": t.final_amount / 100,
+            "status": t.status,
+            "data": t.created_at.isoformat() if t.created_at else None
+        })
+    
+    return {"transacoes": resultado}
+
+@app.get("/api/v1/estatisticas", response_class=JSONResponse)
+def api_estatisticas(request: Request, db: Session = Depends(get_db)):
+    """Endpoint da API para estatísticas do usuário"""
+    try:
+        user_id = get_current_user(request)
+    except:
+        return JSONResponse({"erro": "Não autenticado"}, status_code=401)
+    
+    # Total de depósitos
+    total_depositos = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'deposit',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+    
+    # Total de saques
+    total_saques = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'withdraw',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+    
+    # Total de transferências enviadas
+    total_transf_enviadas = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'transfer_out',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+    
+    # Total de transferências recebidas
+    total_transf_recebidas = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'transfer_in',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+    
+    return {
+        "total_depositado": abs(total_depositos) / 100,
+        "total_sacado": abs(total_saques) / 100,
+        "total_transferido": abs(total_transf_enviadas) / 100,
+        "total_recebido": total_transf_recebidas / 100,
+        "saldo_atual": (db.query(User).filter(User.id == user_id).first().balance_available) / 100
+    }
+
+# ==================== PAINEL DESENVOLVEDOR (NO MENU PRINCIPAL) ====================
+@app.get("/dev-painel", response_class=HTMLResponse)
+def dev_painel_login_form(request: Request, erro: str = None):
+    """Página de login do painel desenvolvedor"""
+    return templates.TemplateResponse("dev_login.html", {
         "request": request,
-        "user_logged_in": False
+        "user_logged_in": False,
+        "erro": erro
     })
 
-@app.post("/admin-painel-9f3k2d")
-def admin_login(request: Request, senha: str = Form(...)):
-    if senha == SENHA_ADMIN:
-        response = RedirectResponse(url="/admin-dashboard-7h4g9w", status_code=302)
-        response.set_cookie(key="admin_token", value="admin_logado", httponly=True)
+@app.post("/dev-painel")
+def dev_painel_login(request: Request, senha: str = Form(...)):
+    """Faz login no painel desenvolvedor"""
+    if senha == SENHA_DEV:
+        response = RedirectResponse(url="/dev-dashboard", status_code=302)
+        response.set_cookie(key="dev_token", value="dev_logado", httponly=True, secure=True, samesite="lax")
         return response
     else:
-        return templates.TemplateResponse("admin_login.html", {
+        return templates.TemplateResponse("dev_login.html", {
             "request": request,
             "user_logged_in": False,
             "erro": "Senha incorreta"
         })
 
-@app.get("/admin-dashboard-7h4g9w", response_class=HTMLResponse)
-def admin_dashboard(request: Request, db: Session = Depends(get_db), admin: bool = Depends(get_admin)):
+@app.get("/dev-dashboard", response_class=HTMLResponse)
+def dev_dashboard(request: Request, db: Session = Depends(get_db)):
+    """Dashboard do desenvolvedor"""
+    # Verifica se tem acesso dev
+    if not verificar_dev(request):
+        return RedirectResponse(url="/dev-painel", status_code=302)
+    
+    # Estatísticas gerais do sistema
+    total_usuarios = db.query(User).count()
+    total_transacoes = db.query(Transaction).count()
+    saldo_total_sistema = db.query(func.sum(User.balance_available)).scalar() or 0
+    saldo_pendente_total = db.query(func.sum(User.balance_pending)).scalar() or 0
+    transacoes_hoje = db.query(Transaction).filter(
+        func.date(Transaction.created_at) == func.current_date()
+    ).count()
+    
+    # Últimas 20 transações
+    ultimas_transacoes = db.query(Transaction).order_by(Transaction.id.desc()).limit(20).all()
+    
+    # Todos os usuários
     usuarios = db.query(User).all()
-    transacoes = db.query(Transaction).order_by(Transaction.id.desc()).limit(50).all()
     
-    stats = {
-        "total_usuarios": len(usuarios),
-        "saldo_total": sum(u.balance_available for u in usuarios) / 100,
-        "saldo_pendente": sum(u.balance_pending for u in usuarios) / 100,
-        "total_transacoes": db.query(Transaction).count()
-    }
-    
-    return templates.TemplateResponse("admin_dashboard.html", {
+    return templates.TemplateResponse("dev_dashboard.html", {
         "request": request,
         "user_logged_in": True,
-        "user_email": "ADMIN",
-        "usuarios": usuarios,
-        "transacoes": transacoes,
-        "stats": stats
+        "user_email": "DESENVOLVEDOR",
+        "total_usuarios": total_usuarios,
+        "total_transacoes": total_transacoes,
+        "saldo_total_sistema": saldo_total_sistema / 100,
+        "saldo_pendente_total": saldo_pendente_total / 100,
+        "transacoes_hoje": transacoes_hoje,
+        "ultimas_transacoes": ultimas_transacoes,
+        "usuarios": usuarios
     })
 
-@app.post("/admin/adicionar-saldo")
-def admin_adicionar_saldo(
+@app.post("/dev/adicionar-saldo")
+def dev_adicionar_saldo(
     request: Request,
-    email: str = Form(...),
+    user_id: int = Form(...),
     valor: int = Form(...),
-    db: Session = Depends(get_db),
-    admin: bool = Depends(get_admin)
+    db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.email == email).first()
+    """Adiciona saldo a um usuário (apenas dev)"""
+    if not verificar_dev(request):
+        return JSONResponse({"erro": "Acesso negado"}, status_code=403)
+    
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
     
     user.balance_available += valor
     trans = Transaction(
         user_id=user.id,
-        transaction_id=f"admin_add_{uuid.uuid4()}",
+        transaction_id=f"dev_add_{uuid.uuid4()}",
         amount=valor,
         final_amount=valor,
         status="approved",
@@ -167,17 +240,20 @@ def admin_adicionar_saldo(
     db.add(trans)
     db.commit()
     
-    return RedirectResponse(url="/admin-dashboard-7h4g9w", status_code=302)
+    return RedirectResponse(url="/dev-dashboard", status_code=302)
 
-@app.post("/admin/remover-saldo")
-def admin_remover_saldo(
+@app.post("/dev/remover-saldo")
+def dev_remover_saldo(
     request: Request,
-    email: str = Form(...),
+    user_id: int = Form(...),
     valor: int = Form(...),
-    db: Session = Depends(get_db),
-    admin: bool = Depends(get_admin)
+    db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.email == email).first()
+    """Remove saldo de um usuário (apenas dev)"""
+    if not verificar_dev(request):
+        return JSONResponse({"erro": "Acesso negado"}, status_code=403)
+    
+    user = db.query(User).filter(User.id == user_id).first()
     if not user:
         return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
     
@@ -187,7 +263,7 @@ def admin_remover_saldo(
     user.balance_available -= valor
     trans = Transaction(
         user_id=user.id,
-        transaction_id=f"admin_remove_{uuid.uuid4()}",
+        transaction_id=f"dev_remove_{uuid.uuid4()}",
         amount=-valor,
         final_amount=-valor,
         status="approved",
@@ -196,61 +272,13 @@ def admin_remover_saldo(
     db.add(trans)
     db.commit()
     
-    return RedirectResponse(url="/admin-dashboard-7h4g9w", status_code=302)
+    return RedirectResponse(url="/dev-dashboard", status_code=302)
 
-@app.get("/admin/usuarios/{user_id}")
-def admin_usuario_detalhe(
-    user_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-    admin: bool = Depends(get_admin)
-):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
-    
-    transacoes = db.query(Transaction).filter(Transaction.user_id == user_id).order_by(Transaction.id.desc()).all()
-    
-    return templates.TemplateResponse("admin_usuario.html", {
-        "request": request,
-        "user_logged_in": True,
-        "user_email": "ADMIN",
-        "usuario": user,
-        "transacoes": transacoes
-    })
-
-@app.get("/admin/recuperar-transacoes")
-def recuperar_transacoes(request: Request, db: Session = Depends(get_db), admin: bool = Depends(get_admin)):
-    pendentes = db.query(Transaction).filter(
-        Transaction.status == "pending",
-        Transaction.type == "deposit"
-    ).all()
-    
-    resultados = []
-    for trans in pendentes:
-        user = db.query(User).filter(User.id == trans.user_id).first()
-        if user:
-            user.balance_pending -= trans.final_amount
-            user.balance_available += trans.final_amount
-            trans.status = "approved"
-            resultados.append({
-                "id": trans.id,
-                "user_email": user.email,
-                "amount": trans.amount,
-                "final_amount": trans.final_amount,
-                "status": "approved (recuperado)"
-            })
-    
-    db.commit()
-    return {
-        "mensagem": "Recuperação concluída",
-        "transacoes_recuperadas": resultados
-    }
-
-@app.get("/admin/logout")
-def admin_logout():
+@app.get("/dev/logout")
+def dev_logout():
+    """Sair do painel desenvolvedor"""
     response = RedirectResponse(url="/", status_code=302)
-    response.delete_cookie("admin_token")
+    response.delete_cookie("dev_token")
     return response
 
 # ==================== ROTAS NORMAIS DO SITE ====================
@@ -347,6 +375,17 @@ def register(
             "email": email
         })
     
+    # ===== VALIDAÇÃO DA SENHA =====
+    if len(password) < 5:
+        return templates.TemplateResponse("register.html", {
+            "request": request,
+            "user_logged_in": False,
+            "erro": "A senha deve ter no mínimo 5 caracteres.",
+            "nome_completo": nome_completo,
+            "cpf": cpf,
+            "email": email
+        })
+    
     # ===== VALIDAÇÕES DE DUPLICIDADE =====
     if db.query(User).filter(User.email == email).first():
         return templates.TemplateResponse("register.html", {
@@ -394,14 +433,31 @@ def register(
     )
     return response
 
+@app.get("/login", response_class=HTMLResponse)
+def login_form(request: Request, erro: str = None, email: str = ""):
+    return templates.TemplateResponse("login.html", {
+        "request": request,
+        "user_logged_in": False,
+        "erro": erro,
+        "email": email
+    })
+
 @app.post("/login")
-def login(email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+def login(request: Request, email: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
     logger.info(f"Login: {email}")
     user = db.query(User).filter(User.email == email).first()
+    
     if not user or not verify_password(password, user.password):
-        raise HTTPException(400, "Credenciais inválidas")
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "user_logged_in": False,
+            "erro": "Credenciais inválidas. Verifique seu email e senha.",
+            "email": email
+        })
+    
     token = create_token({"sub": user.id})
     logger.info(f"Token gerado no login: {token[:20]}...")
+    
     response = RedirectResponse(url="/dashboard", status_code=302)
     response.set_cookie(
         key="access_token",
@@ -415,21 +471,86 @@ def login(email: str = Form(...), password: str = Form(...), db: Session = Depen
 
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request, db: Session = Depends(get_db)):
-    cookie_token = request.cookies.get("access_token")
-    logger.info(f"Cookie recebido no dashboard: {cookie_token[:20] if cookie_token else 'Nenhum'}")
     try:
         user_id = get_current_user(request)
         logger.info(f"Autenticação OK, user_id: {user_id}")
     except HTTPException as e:
         logger.warning(f"Falha na autenticação: {e.detail}")
         return RedirectResponse(url="/")
+    
     user = db.query(User).filter(User.id == user_id).first()
+    
+    # ===== ESTATÍSTICAS EM TEMPO REAL =====
+    # Total de depósitos (aprovados)
+    total_depositos = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'deposit',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+    
+    # Total de saques
+    total_saques = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'withdraw',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+    
+    # Total de transferências enviadas
+    total_transf_enviadas = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'transfer_out',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+    
+    # Total de transferências recebidas
+    total_transf_recebidas = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'transfer_in',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+    
+    # Transações recentes (últimas 5)
+    transacoes_recentes = db.query(Transaction).filter(
+        Transaction.user_id == user_id,
+        Transaction.status == 'approved'
+    ).order_by(Transaction.id.desc()).limit(5).all()
+    
+    # Estatísticas por período
+    hoje = datetime.now().date()
+    inicio_mes = hoje.replace(day=1)
+    
+    depositos_mes = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'deposit',
+        Transaction.status == 'approved',
+        func.date(Transaction.created_at) >= inicio_mes
+    ).scalar() or 0
+    
+    # Formata as transações para o template
+    transacoes_formatadas = []
+    for t in transacoes_recentes:
+        transacoes_formatadas.append({
+            "id": t.id,
+            "type": t.type,
+            "amount": t.final_amount / 100,
+            "status": t.status,
+            "created_at": t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else ""
+        })
+    
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "user_logged_in": True,
         "user_email": user.email,
         "user_nome": user.nome_completo,
-        "available": user.balance_available / 100
+        "available": user.balance_available / 100,
+        "pending": user.balance_pending / 100,
+        "total_depositos": abs(total_depositos) / 100,
+        "total_saques": abs(total_saques) / 100,
+        "total_transf_enviadas": abs(total_transf_enviadas) / 100,
+        "total_transf_recebidas": total_transf_recebidas / 100,
+        "depositos_mes": depositos_mes / 100,
+        "transacoes_recentes": transacoes_formatadas,
+        "tem_acesso_dev": verificar_dev(request)
     })
 
 @app.get("/api/verificar-transacao/{transaction_id}")
@@ -449,8 +570,10 @@ def verificar_transacao(transaction_id: str, request: Request, db: Session = Dep
     
     return JSONResponse({
         "status": trans.status,
-        "amount": trans.amount,
-        "final_amount": trans.final_amount
+        "amount": trans.amount / 100,
+        "final_amount": trans.final_amount / 100,
+        "type": trans.type,
+        "created_at": trans.created_at.isoformat() if trans.created_at else None
     })
 
 @app.get("/deposit", response_class=HTMLResponse)
@@ -785,3 +908,39 @@ def logout():
     response = RedirectResponse("/", 302)
     response.delete_cookie("access_token")
     return response
+
+# Função para validar CPF (matematicamente)
+def validar_cpf(cpf: str) -> bool:
+    """Valida se um CPF é matematicamente válido"""
+    # Remove caracteres não numéricos
+    cpf = re.sub(r'[^0-9]', '', cpf)
+    
+    # Verifica se tem 11 dígitos
+    if len(cpf) != 11:
+        return False
+    
+    # Verifica se todos os dígitos são iguais (ex: 111.111.111-11)
+    if cpf == cpf[0] * 11:
+        return False
+    
+    # Validação do primeiro dígito verificador
+    soma = 0
+    for i in range(9):
+        soma += int(cpf[i]) * (10 - i)
+    resto = 11 - (soma % 11)
+    if resto > 9:
+        resto = 0
+    if int(cpf[9]) != resto:
+        return False
+    
+    # Validação do segundo dígito verificador
+    soma = 0
+    for i in range(10):
+        soma += int(cpf[i]) * (11 - i)
+    resto = 11 - (soma % 11)
+    if resto > 9:
+        resto = 0
+    if int(cpf[10]) != resto:
+        return False
+    
+    return True
