@@ -1,177 +1,169 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <style>
-        body {
-            background: #f4f6f9;
-            padding: 20px;
-        }
-        .card-stats {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-        }
-        .table-admin {
-            background: white;
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        .table-admin thead {
-            background: #343a40;
-            color: white;
-        }
-    </style>
-</head>
-<body>
-    <div class="container-fluid">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2><i class="bi bi-shield-lock"></i> Painel Administrativo</h2>
-            <a href="/admin/logout" class="btn btn-outline-danger">
-                <i class="bi bi-box-arrow-right"></i> Sair
-            </a>
+{% extends "base.html" %}
+
+{% block title %}Painel Desenvolvedor{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card-modern gradient-bg text-center py-4">
+            <h2 class="fw-bold"><i class="bi bi-code-square"></i> Painel do Desenvolvedor</h2>
+            <p class="lead mb-0">Controle total do sistema</p>
         </div>
-        
-        <!-- Stats Cards -->
-        <div class="row">
-            <div class="col-md-3">
-                <div class="card-stats">
-                    <h5>Total Usuários</h5>
-                    <h2>{{ stats.total_usuarios }}</h2>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card-stats">
-                    <h5>Saldo Total</h5>
-                    <h2>R$ {{ "%.2f"|format(stats.saldo_total) }}</h2>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card-stats">
-                    <h5>Saldo Pendente</h5>
-                    <h2>R$ {{ "%.2f"|format(stats.saldo_pendente) }}</h2>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card-stats">
-                    <h5>Total Transações</h5>
-                    <h2>{{ stats.total_transacoes }}</h2>
-                </div>
-            </div>
+    </div>
+</div>
+
+<!-- Cards de Estatísticas Gerais -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card-modern text-center">
+            <i class="bi bi-people fs-1" style="color: #FF8C00;"></i>
+            <h5 class="mt-2">Total Usuários</h5>
+            <h4 style="color: #FF8C00;">{{ total_usuarios }}</h4>
         </div>
-        
-        <!-- Ações Rápidas -->
-        <div class="row mt-4">
-            <div class="col-md-6">
-                <div class="card-stats">
-                    <h5><i class="bi bi-plus-circle text-success"></i> Adicionar Saldo</h5>
-                    <form method="post" action="/admin/adicionar-saldo" class="row g-3">
-                        <div class="col-md-5">
-                            <input type="email" class="form-control" name="email" placeholder="Email" required>
-                        </div>
-                        <div class="col-md-4">
-                            <input type="number" class="form-control" name="valor" placeholder="Valor (centavos)" required>
-                        </div>
-                        <div class="col-md-3">
-                            <button type="submit" class="btn btn-success w-100">Adicionar</button>
+    </div>
+    <div class="col-md-3">
+        <div class="card-modern text-center">
+            <i class="bi bi-arrow-left-right fs-1" style="color: #FF8C00;"></i>
+            <h5 class="mt-2">Total Transações</h5>
+            <h4 style="color: #FF8C00;">{{ total_transacoes }}</h4>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card-modern text-center">
+            <i class="bi bi-cash-stack fs-1" style="color: #FF8C00;"></i>
+            <h5 class="mt-2">Saldo Total</h5>
+            <h4 style="color: #FF8C00;">R$ {{ "%.2f"|format(saldo_total_sistema) }}</h4>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card-modern text-center">
+            <i class="bi bi-hourglass-split fs-1" style="color: #FF8C00;"></i>
+            <h5 class="mt-2">Saldo Pendente</h5>
+            <h4 style="color: #FF8C00;">R$ {{ "%.2f"|format(saldo_pendente_total) }}</h4>
+        </div>
+    </div>
+</div>
+
+<!-- Ações Rápidas Dev -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card-modern">
+            <h5 class="mb-3"><i class="bi bi-tools" style="color: #FF8C00;"></i> Ferramentas de Desenvolvedor</h5>
+            <div class="row">
+                <div class="col-md-6">
+                    <form method="post" action="/dev/adicionar-saldo" class="border p-3 rounded mb-3">
+                        <h6 class="text-success"><i class="bi bi-plus-circle"></i> Adicionar Saldo</h6>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <select name="user_id" class="form-control" required>
+                                    <option value="">Selecione o usuário</option>
+                                    {% for user in usuarios %}
+                                    <option value="{{ user.id }}">{{ user.email }} (R$ {{ "%.2f"|format(user.balance_available/100) }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="number" name="valor" class="form-control" placeholder="Valor em centavos" required>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-success w-100">Add</button>
+                            </div>
                         </div>
                     </form>
                 </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card-stats">
-                    <h5><i class="bi bi-dash-circle text-danger"></i> Remover Saldo</h5>
-                    <form method="post" action="/admin/remover-saldo" class="row g-3">
-                        <div class="col-md-5">
-                            <input type="email" class="form-control" name="email" placeholder="Email" required>
-                        </div>
-                        <div class="col-md-4">
-                            <input type="number" class="form-control" name="valor" placeholder="Valor (centavos)" required>
-                        </div>
-                        <div class="col-md-3">
-                            <button type="submit" class="btn btn-danger w-100">Remover</button>
+                <div class="col-md-6">
+                    <form method="post" action="/dev/remover-saldo" class="border p-3 rounded mb-3">
+                        <h6 class="text-danger"><i class="bi bi-dash-circle"></i> Remover Saldo</h6>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <select name="user_id" class="form-control" required>
+                                    <option value="">Selecione o usuário</option>
+                                    {% for user in usuarios %}
+                                    <option value="{{ user.id }}">{{ user.email }} (R$ {{ "%.2f"|format(user.balance_available/100) }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="number" name="valor" class="form-control" placeholder="Valor em centavos" required>
+                            </div>
+                            <div class="col-md-2">
+                                <button type="submit" class="btn btn-danger w-100">Rem</button>
+                            </div>
                         </div>
                     </form>
                 </div>
-            </div>
-        </div>
-        
-        <!-- Lista de Usuários -->
-        <div class="card-stats mt-4">
-            <h5><i class="bi bi-people"></i> Usuários</h5>
-            <div class="table-responsive">
-                <table class="table table-hover table-admin">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Email</th>
-                            <th>Saldo</th>
-                            <th>Pendente</th>
-                            <th>Chave Pix</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for user in usuarios %}
-                        <tr>
-                            <td>{{ user.id }}</td>
-                            <td>{{ user.email }}</td>
-                            <td>R$ {{ "%.2f"|format(user.balance_available/100) }}</td>
-                            <td>R$ {{ "%.2f"|format(user.balance_pending/100) }}</td>
-                            <td>{{ user.pix_key or "-" }}</td>
-                            <td>
-                                <a href="/admin/usuarios/{{ user.id }}" class="btn btn-sm btn-info">
-                                    <i class="bi bi-eye"></i>
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        
-        <!-- Transações Recentes -->
-        <div class="card-stats mt-4">
-            <h5><i class="bi bi-clock-history"></i> Últimas Transações</h5>
-            <div class="table-responsive">
-                <table class="table table-sm table-admin">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Usuário</th>
-                            <th>Tipo</th>
-                            <th>Valor</th>
-                            <th>Status</th>
-                            <th>Data</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for t in transacoes %}
-                        <tr>
-                            <td>{{ t.id }}</td>
-                            <td>{{ t.user_id }}</td>
-                            <td>{{ t.type }}</td>
-                            <td>R$ {{ "%.2f"|format(t.final_amount/100) }}</td>
-                            <td>
-                                <span class="badge {% if t.status == 'approved' %}bg-success{% else %}bg-warning{% endif %}">
-                                    {{ t.status }}
-                                </span>
-                            </td>
-                            <td>{{ t.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
             </div>
         </div>
     </div>
-</body>
-</html>
+</div>
+
+<!-- Lista de Usuários -->
+<div class="card-modern mb-4">
+    <h5 class="mb-3"><i class="bi bi-people" style="color: #FF8C00;"></i> Todos os Usuários</h5>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>CPF</th>
+                    <th>Saldo</th>
+                    <th>Pendente</th>
+                    <th>Pix</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in usuarios %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.nome_completo }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.cpf[:3] }}.{{ user.cpf[3:6] }}.{{ user.cpf[6:9] }}-{{ user.cpf[9:] }}</td>
+                    <td>R$ {{ "%.2f"|format(user.balance_available/100) }}</td>
+                    <td>R$ {{ "%.2f"|format(user.balance_pending/100) }}</td>
+                    <td>{{ user.pix_key or "-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Últimas Transações -->
+<div class="card-modern">
+    <h5 class="mb-3"><i class="bi bi-clock-history" style="color: #FF8C00;"></i> Últimas 20 Transações</h5>
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Usuário ID</th>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                    <th>Status</th>
+                    <th>Data</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in ultimas_transacoes %}
+                <tr>
+                    <td>{{ t.id }}</td>
+                    <td>{{ t.user_id }}</td>
+                    <td>{{ t.type }}</td>
+                    <td>R$ {{ "%.2f"|format(t.final_amount/100) }}</td>
+                    <td>
+                        {% if t.status == 'approved' %}
+                        <span class="badge bg-success">Aprovado</span>
+                        {% else %}
+                        <span class="badge bg-warning">Pendente</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ t.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
