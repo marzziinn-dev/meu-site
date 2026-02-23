@@ -30,6 +30,8 @@ class User(Base):
     total_vendas = Column(Integer, default=0)
     total_reembolsos = Column(Integer, default=0)
     percentual_reembolso = Column(Float, default=0.0)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 class Transaction(Base):
     __tablename__ = "transactions"
