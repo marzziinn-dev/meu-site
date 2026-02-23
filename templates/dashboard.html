@@ -12,26 +12,80 @@
     </div>
 </div>
 
-<div class="row g-4">
-    <!-- Card de Saldo -->
-    <div class="col-md-6 col-lg-4">
+<!-- Cards de Saldo -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
         <div class="card-modern">
-            <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <h5 class="text-muted mb-1">Saldo Disponível</h5>
-                    <h2 class="fw-bold text-success">R$ {{ "%.2f"|format(available) }}</h2>
+                    <h2 class="fw-bold" style="color: #FF8C00;">R$ {{ "%.2f"|format(available) }}</h2>
                 </div>
-                <div class="bg-success bg-opacity-10 p-3 rounded-circle">
+                <div class="bg-warning bg-opacity-10 p-3 rounded-circle">
                     <i class="bi bi-wallet2 fs-1" style="color: #FF8C00;"></i>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Card de Ações Rápidas -->
-    <div class="col-md-6 col-lg-4">
+    <div class="col-md-6">
         <div class="card-modern">
-            <h5 class="text-muted mb-3">Ações Rápidas</h5>
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="text-muted mb-1">Saldo Pendente</h5>
+                    <h2 class="fw-bold" style="color: #888888;">R$ {{ "%.2f"|format(pending) }}</h2>
+                </div>
+                <div class="bg-secondary bg-opacity-10 p-3 rounded-circle">
+                    <i class="bi bi-hourglass-split fs-1" style="color: #888888;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cards de Estatísticas -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card-modern text-center">
+            <i class="bi bi-arrow-down-circle fs-1" style="color: #FF8C00;"></i>
+            <h5 class="mt-2">Total Depositado</h5>
+            <h4 style="color: #FF8C00;">R$ {{ "%.2f"|format(total_depositos) }}</h4>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card-modern text-center">
+            <i class="bi bi-arrow-up-circle fs-1" style="color: #FF8C00;"></i>
+            <h5 class="mt-2">Total Sacado</h5>
+            <h4 style="color: #FF8C00;">R$ {{ "%.2f"|format(total_saques) }}</h4>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card-modern text-center">
+            <i class="bi bi-send fs-1" style="color: #FF8C00;"></i>
+            <h5 class="mt-2">Transferido</h5>
+            <h4 style="color: #FF8C00;">R$ {{ "%.2f"|format(total_transf_enviadas) }}</h4>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card-modern text-center">
+            <i class="bi bi-send-plus fs-1" style="color: #FF8C00;"></i>
+            <h5 class="mt-2">Recebido</h5>
+            <h4 style="color: #FF8C00;">R$ {{ "%.2f"|format(total_transf_recebidas) }}</h4>
+        </div>
+    </div>
+</div>
+
+<!-- Estatísticas do Mês e Ações Rápidas -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card-modern">
+            <h5 class="mb-3"><i class="bi bi-calendar-check" style="color: #FF8C00;"></i> Depósitos do Mês</h5>
+            <h3 style="color: #FF8C00;">R$ {{ "%.2f"|format(depositos_mes) }}</h3>
+            <p class="text-muted">Desde o início do mês</p>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card-modern">
+            <h5 class="mb-3"><i class="bi bi-lightning-charge" style="color: #FF8C00;"></i> Ações Rápidas</h5>
             <div class="d-grid gap-2">
                 <a href="/deposit" class="btn btn-primary-modern">
                     <i class="bi bi-qr-code"></i> Depositar Agora
@@ -42,47 +96,49 @@
             </div>
         </div>
     </div>
-
-    <!-- Card de Estatísticas -->
-    <div class="col-md-12 col-lg-4">
-        <div class="card-modern">
-            <h5 class="text-muted mb-3">Informações da Conta</h5>
-            <div class="text-center text-muted py-3">
-                <i class="bi bi-person-circle fs-1" style="color: #FF8C00;"></i>
-                <p class="mb-0">{{ user_email }}</p>
-            </div>
-        </div>
-    </div>
 </div>
 
-<!-- Seção de Recursos -->
-<div class="row mt-5">
-    <div class="col-12">
-        <h3 class="text-center mb-4" style="color: #FF8C00;">Por que escolher Revolution Pay?</h3>
+<!-- Transações Recentes -->
+<div class="card-modern">
+    <h5 class="mb-3"><i class="bi bi-clock-history" style="color: #FF8C00;"></i> Transações Recentes</h5>
+    {% if transacoes_recentes %}
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Tipo</th>
+                    <th>Valor</th>
+                    <th>Data</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in transacoes_recentes %}
+                <tr>
+                    <td>
+                        {% if t.type == 'deposit' %}
+                            <span class="badge bg-success"><i class="bi bi-arrow-down"></i> Depósito</span>
+                        {% elif t.type == 'withdraw' %}
+                            <span class="badge bg-warning text-dark"><i class="bi bi-arrow-up"></i> Saque</span>
+                        {% elif t.type == 'transfer_in' %}
+                            <span class="badge bg-info"><i class="bi bi-arrow-left"></i> Recebido</span>
+                        {% elif t.type == 'transfer_out' %}
+                            <span class="badge bg-secondary"><i class="bi bi-arrow-right"></i> Enviado</span>
+                        {% endif %}
+                    </td>
+                    <td class="fw-bold {% if t.amount > 0 %}text-success{% else %}text-danger{% endif %}">
+                        R$ {{ "%.2f"|format(t.amount|abs) }}
+                    </td>
+                    <td>{{ t.created_at }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-    
-    <div class="col-md-4 mb-3">
-        <div class="card-modern text-center h-100">
-            <i class="bi bi-shield-check fs-1" style="color: #FF8C00;"></i>
-            <h5>100% Seguro</h5>
-            <p class="text-muted">Pagamentos criptografados e protegidos</p>
-        </div>
+    <div class="text-center mt-3">
+        <a href="/history" class="btn btn-outline-modern">Ver todas</a>
     </div>
-    
-    <div class="col-md-4 mb-3">
-        <div class="card-modern text-center h-100">
-            <i class="bi bi-lightning-charge fs-1" style="color: #FF8C00;"></i>
-            <h5>Instantâneo</h5>
-            <p class="text-muted">Transações em tempo real</p>
-        </div>
-    </div>
-    
-    <div class="col-md-4 mb-3">
-        <div class="card-modern text-center h-100">
-            <i class="bi bi-headset fs-1" style="color: #5865F2;"></i>
-            <h5>Suporte 24/7</h5>
-            <p class="text-muted">Equipe sempre disponível no Discord</p>
-        </div>
-    </div>
+    {% else %}
+    <p class="text-muted text-center py-3">Nenhuma transação recente.</p>
+    {% endif %}
 </div>
 {% endblock %}
