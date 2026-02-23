@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}Programa de Afiliados{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card-modern gradient-bg text-center py-4">
+            <h2 class="fw-bold"><i class="bi bi-award"></i> Programa de Afiliados</h2>
+            <p class="lead mb-0">Ganhe comissões indicando a Revolution Pay</p>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card-modern">
+            <h5 class="mb-3"><i class="bi bi-link-45deg" style="color: #FF8C00;"></i> Seu Link de Afiliado</h5>
+            <p>Compartilhe este link e ganhe comissões por cada venda:</p>
+            <div class="input-group mb-3">
+                <input type="text" class="form-control" value="{{ link_afiliado }}" id="linkAfiliado" readonly>
+                <button class="btn btn-primary-modern" onclick="copiarLink()">
+                    <i class="bi bi-files"></i> Copiar
+                </button>
+            </div>
+            <p class="text-muted small">
+                <i class="bi bi-info-circle"></i>
+                Você ganha comissões sobre todas as transações dos usuários que se cadastrarem pelo seu link.
+            </p>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card-modern">
+            <h5 class="mb-3"><i class="bi bi-cash-stack" style="color: #FF8C00;"></i> Suas Comissões</h5>
+            <div class="text-center">
+                <h2 style="color: #FF8C00;">R$ {{ "%.2f"|format(comissoes_acumuladas) }}</h2>
+                <p class="text-muted">Comissões acumuladas</p>
+            </div>
+            <hr>
+            <div class="d-flex justify-content-between">
+                <span>Total de indicações:</span>
+                <span class="fw-bold">{{ indicacoes|length }}</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span>Seu código:</span>
+                <span class="fw-bold">{{ codigo_afiliado }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Suas Indicações -->
+<div class="card-modern mb-4">
+    <h5 class="mb-3"><i class="bi bi-people" style="color: #FF8C00;"></i> Suas Indicações</h5>
+    {% if indicacoes %}
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Data</th>
+                    <th>Rota</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ind in indicacoes %}
+                <tr>
+                    <td>{{ ind.nome_completo }}</td>
+                    <td>{{ ind.email }}</td>
+                    <td>{{ ind.created_at.strftime("%d/%m/%Y") if ind.created_at else "N/A" }}</td>
+                    <td>
+                        {% if ind.rota == 'black' %}
+                        <span class="badge bg-warning">Black</span>
+                        {% else %}
+                        <span class="badge bg-success">White</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-3">Você ainda não tem indicações. Compartilhe seu link!</p>
+    {% endif %}
+</div>
+
+<!-- Histórico de Comissões -->
+<div class="card-modern">
+    <h5 class="mb-3"><i class="bi bi-clock-history" style="color: #FF8C00;"></i> Histórico de Comissões</h5>
+    {% if comissoes %}
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Venda</th>
+                    <th>Valor</th>
+                    <th>Comissão</th>
+                    <th>Status</th>
+                    <th>Data</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in comissoes %}
+                <tr>
+                    <td>#{{ c.venda_id }}</td>
+                    <td>R$ {{ "%.2f"|format(c.valor_venda/100) }}</td>
+                    <td>R$ {{ "%.2f"|format(c.comissao/100) }}</td>
+                    <td>
+                        {% if c.pago %}
+                        <span class="badge bg-success">Pago</span>
+                        {% else %}
+                        <span class="badge bg-warning">Pendente</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ c.created_at.strftime("%d/%m/%Y") }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-3">Nenhuma comissão registrada ainda.</p>
+    {% endif %}
+</div>
+
+<script>
+function copiarLink() {
+    const link = document.getElementById('linkAfiliado');
+    link.select();
+    navigator.clipboard.writeText(link.value);
+    alert('Link copiado para a área de transferência!');
+}
+</script>
+{% endblock %}
