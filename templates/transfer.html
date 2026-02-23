@@ -1,23 +1,43 @@
 {% extends "base.html" %}
+
 {% block title %}Transferir{% endblock %}
+
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-header">Transferir saldo</div>
-            <div class="card-body">
-                <form method="post" action="/transfer">
-                    <div class="mb-3">
-                        <label class="form-label">E-mail do destinatário</label>
-                        <input type="email" name="dest_email" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Valor (centavos)</label>
-                        <input type="number" name="amount" class="form-control" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Transferir</button>
-                </form>
+    <div class="col-md-8">
+        <div class="card-modern">
+            <div class="text-center mb-4">
+                <i class="bi bi-send display-1" style="color: #FF8C00;"></i>
+                <h2 class="fw-bold" style="color: #FF8C00;">Transferir Saldo</h2>
+                <p class="text-muted">Envie dinheiro para outro usuário</p>
             </div>
+            
+            <div class="alert alert-info d-flex align-items-center gap-3 mb-4">
+                <i class="bi bi-info-circle fs-4"></i>
+                <div>
+                    <strong>Saldo disponível:</strong> R$ {{ "%.2f"|format(available) }}
+                    <br>
+                    <small>Transferências são gratuitas</small>
+                </div>
+            </div>
+            
+            <form method="post" action="/transfer">
+                <div class="mb-3">
+                    <label class="form-label">E-mail do destinatário</label>
+                    <input type="email" name="dest_email" class="form-control form-control-lg" 
+                           placeholder="email@exemplo.com" required>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="form-label">Valor (R$)</label>
+                    <input type="number" step="0.01" name="amount" class="form-control form-control-lg" 
+                           placeholder="Digite o valor" min="0.01" max="{{ available }}" required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary-modern w-100 py-3">
+                    <i class="bi bi-send"></i> Transferir
+                </button>
+            </form>
         </div>
     </div>
 </div>
