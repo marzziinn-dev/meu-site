@@ -12,7 +12,6 @@
     </div>
 </div>
 
-<!-- Cards de Estatísticas Gerais -->
 <div class="row g-4 mb-4">
     <div class="col-md-3">
         <div class="card-modern text-center">
@@ -44,7 +43,6 @@
     </div>
 </div>
 
-<!-- Ações Rápidas Admin -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card-modern">
@@ -97,7 +95,6 @@
     </div>
 </div>
 
-<!-- Lista de Usuários -->
 <div class="card-modern mb-4">
     <h5 class="mb-3"><i class="bi bi-people" style="color: #FF8C00;"></i> Todos os Usuários</h5>
     <div class="table-responsive">
@@ -108,9 +105,10 @@
                     <th>Nome</th>
                     <th>Email</th>
                     <th>CPF</th>
+                    <th>Telefone</th>
+                    <th>Rota</th>
                     <th>Saldo</th>
                     <th>Pendente</th>
-                    <th>Pix</th>
                 </tr>
             </thead>
             <tbody>
@@ -120,9 +118,16 @@
                     <td>{{ user.nome_completo }}</td>
                     <td>{{ user.email }}</td>
                     <td>{{ user.cpf[:3] }}.{{ user.cpf[3:6] }}.{{ user.cpf[6:9] }}-{{ user.cpf[9:] }}</td>
+                    <td>({{ user.telefone[:2] }}) {{ user.telefone[2:7] }}-{{ user.telefone[7:] }}</td>
+                    <td>
+                        {% if user.rota == 'black' %}
+                        <span class="badge bg-warning">Black</span>
+                        {% else %}
+                        <span class="badge bg-success">White</span>
+                        {% endif %}
+                    </td>
                     <td>R$ {{ "%.2f"|format(user.balance_available/100) }}</td>
                     <td>R$ {{ "%.2f"|format(user.balance_pending/100) }}</td>
-                    <td>{{ user.pix_key or "-" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -130,7 +135,6 @@
     </div>
 </div>
 
-<!-- Últimas Transações -->
 <div class="card-modern">
     <h5 class="mb-3"><i class="bi bi-clock-history" style="color: #FF8C00;"></i> Últimas 20 Transações</h5>
     <div class="table-responsive">
@@ -138,9 +142,10 @@
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Usuário ID</th>
+                    <th>Usuário</th>
                     <th>Tipo</th>
                     <th>Valor</th>
+                    <th>Taxa</th>
                     <th>Status</th>
                     <th>Data</th>
                 </tr>
@@ -151,7 +156,8 @@
                     <td>{{ t.id }}</td>
                     <td>{{ t.user_id }}</td>
                     <td>{{ t.type }}</td>
-                    <td>R$ {{ "%.2f"|format(t.final_amount/100) }}</td>
+                    <td>R$ {{ "%.2f"|format(t.amount/100) }}</td>
+                    <td>R$ {{ "%.2f"|format(t.taxa/100) }}</td>
                     <td>
                         {% if t.status == 'approved' %}
                         <span class="badge bg-success">Aprovado</span>
