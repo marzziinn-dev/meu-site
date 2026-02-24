@@ -7,52 +7,97 @@
     <div class="col-12">
         <div class="card-modern gradient-bg text-center py-4">
             <h2 class="fw-bold"><i class="bi bi-shield-lock"></i> Painel do Administrador</h2>
-            <p class="lead mb-0">Controle total do sistema</p>
+            <p class="lead mb-0">Controle total do sistema em tempo real</p>
         </div>
     </div>
 </div>
 
+<!-- Cards de Estatísticas em Tempo Real -->
 <div class="row g-4 mb-4">
     <div class="col-md-3">
         <div class="card-modern text-center">
             <i class="bi bi-people fs-1" style="color: #FF8C00;"></i>
             <h5 class="mt-2">Total Usuários</h5>
-            <h4 style="color: #FF8C00;">{{ total_usuarios }}</h4>
+            <h4 style="color: #FF8C00;" id="totalUsuarios">{{ total_usuarios }}</h4>
+            <small class="text-muted">Cadastrados</small>
         </div>
     </div>
     <div class="col-md-3">
         <div class="card-modern text-center">
             <i class="bi bi-arrow-left-right fs-1" style="color: #FF8C00;"></i>
             <h5 class="mt-2">Total Transações</h5>
-            <h4 style="color: #FF8C00;">{{ total_transacoes }}</h4>
+            <h4 style="color: #FF8C00;" id="totalTransacoes">{{ total_transacoes }}</h4>
+            <small class="text-muted">Processadas</small>
         </div>
     </div>
     <div class="col-md-3">
         <div class="card-modern text-center">
             <i class="bi bi-cash-stack fs-1" style="color: #FF8C00;"></i>
-            <h5 class="mt-2">Saldo Total</h5>
-            <h4 style="color: #FF8C00;">R$ {{ "%.2f"|format(saldo_total_sistema) }}</h4>
+            <h5 class="mt-2">Volume Total</h5>
+            <h4 style="color: #FF8C00;" id="volumeTotal">R$ {{ "%.2f"|format(saldo_total_sistema) }}</h4>
+            <small class="text-muted">Em circulação</small>
         </div>
     </div>
     <div class="col-md-3">
         <div class="card-modern text-center">
             <i class="bi bi-hourglass-split fs-1" style="color: #FF8C00;"></i>
-            <h5 class="mt-2">Saldo Pendente</h5>
-            <h4 style="color: #FF8C00;">R$ {{ "%.2f"|format(saldo_pendente_total) }}</h4>
+            <h5 class="mt-2">Transações Hoje</h5>
+            <h4 style="color: #FF8C00;" id="transacoesHoje">{{ transacoes_hoje }}</h4>
+            <small class="text-muted">Últimas 24h</small>
         </div>
     </div>
 </div>
 
+<!-- Gráficos e Estatísticas Detalhadas -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card-modern">
+            <h5 class="mb-3"><i class="bi bi-graph-up" style="color: #FF8C00;"></i> Transações por Tipo</h5>
+            <canvas id="graficoTransacoes" style="max-height: 300px;"></canvas>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card-modern">
+            <h5 class="mb-3"><i class="bi bi-activity" style="color: #FF8C00;"></i> Atividade Recente</h5>
+            <div class="list-group list-group-flush bg-transparent" id="atividadeRecente">
+                {% for t in ultimas_transacoes[:5] %}
+                <div class="list-group-item bg-transparent text-white border-secondary">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi 
+                                {% if t.type == 'deposit' %}bi-arrow-down-circle text-success
+                                {% elif t.type == 'withdraw' %}bi-arrow-up-circle text-warning
+                                {% elif t.type == 'transfer_in' %}bi-box-arrow-in-left text-info
+                                {% elif t.type == 'transfer_out' %}bi-box-arrow-right text-secondary
+                                {% endif %}
+                            "></i>
+                            <span class="ms-2">{{ t.type|replace('_', ' ')|title }}</span>
+                        </div>
+                        <div>
+                            <span class="badge {% if t.status == 'approved' %}bg-success{% else %}bg-warning{% endif %}">
+                                R$ {{ "%.2f"|format(t.final_amount/100) }}
+                            </span>
+                        </div>
+                    </div>
+                    <small class="text-muted">{{ t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else "N/A" }}</small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Ações Rápidas -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card-modern">
             <h5 class="mb-3"><i class="bi bi-tools" style="color: #FF8C00;"></i> Ferramentas Administrativas</h5>
             <div class="row">
                 <div class="col-md-6">
-                    <form method="post" action="/admin/adicionar-saldo" class="border p-3 rounded mb-3">
+                    <form method="post" action="/admin/adicionar-saldo" class="border border-secondary p-3 rounded mb-3" onsubmit="return confirm('Confirmar adição de saldo?')">
                         <h6 class="text-success"><i class="bi bi-plus-circle"></i> Adicionar Saldo</h6>
                         <div class="row g-2">
-                            <div class="col-md-6">
+                            <div class="col-md-5">
                                 <select name="user_id" class="form-control" required>
                                     <option value="">Selecione o usuário</option>
                                     {% for user in usuarios %}
@@ -63,17 +108,17 @@
                             <div class="col-md-4">
                                 <input type="number" name="valor" class="form-control" placeholder="Valor em centavos" required>
                             </div>
-                            <div class="col-md-2">
-                                <button type="submit" class="btn btn-success w-100">Add</button>
+                            <div class="col-md-3">
+                                <button type="submit" class="btn btn-success w-100">Adicionar</button>
                             </div>
                         </div>
                     </form>
                 </div>
                 <div class="col-md-6">
-                    <form method="post" action="/admin/remover-saldo" class="border p-3 rounded mb-3">
+                    <form method="post" action="/admin/remover-saldo" class="border border-secondary p-3 rounded mb-3" onsubmit="return confirm('Confirmar remoção de saldo?')">
                         <h6 class="text-danger"><i class="bi bi-dash-circle"></i> Remover Saldo</h6>
                         <div class="row g-2">
-                            <div class="col-md-6">
+                            <div class="col-md-5">
                                 <select name="user_id" class="form-control" required>
                                     <option value="">Selecione o usuário</option>
                                     {% for user in usuarios %}
@@ -84,8 +129,8 @@
                             <div class="col-md-4">
                                 <input type="number" name="valor" class="form-control" placeholder="Valor em centavos" required>
                             </div>
-                            <div class="col-md-2">
-                                <button type="submit" class="btn btn-danger w-100">Rem</button>
+                            <div class="col-md-3">
+                                <button type="submit" class="btn btn-danger w-100">Remover</button>
                             </div>
                         </div>
                     </form>
@@ -95,30 +140,33 @@
     </div>
 </div>
 
+<!-- Tabela de Usuários -->
 <div class="card-modern mb-4">
-    <h5 class="mb-3"><i class="bi bi-people" style="color: #FF8C00;"></i> Todos os Usuários</h5>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5><i class="bi bi-people" style="color: #FF8C00;"></i> Todos os Usuários</h5>
+        <span class="badge bg-info">{{ usuarios|length }} registros</span>
+    </div>
     <div class="table-responsive">
-        <table class="table">
+        <table class="table table-hover">
             <thead>
                 <tr>
                     <th>ID</th>
                     <th>Nome</th>
                     <th>Email</th>
-                    <th>CPF</th>
-                    <th>Telefone</th>
                     <th>Rota</th>
                     <th>Saldo</th>
                     <th>Pendente</th>
+                    <th>Total Depósitos</th>
+                    <th>Total Saques</th>
+                    <th>Ações</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="tabelaUsuarios">
                 {% for user in usuarios %}
                 <tr>
                     <td>{{ user.id }}</td>
                     <td>{{ user.nome_completo }}</td>
                     <td>{{ user.email }}</td>
-                    <td>{{ user.cpf[:3] }}.{{ user.cpf[3:6] }}.{{ user.cpf[6:9] }}-{{ user.cpf[9:] }}</td>
-                    <td>({{ user.telefone[:2] }}) {{ user.telefone[2:7] }}-{{ user.telefone[7:] }}</td>
                     <td>
                         {% if user.rota == 'black' %}
                         <span class="badge bg-warning">Black</span>
@@ -128,6 +176,13 @@
                     </td>
                     <td>R$ {{ "%.2f"|format(user.balance_available/100) }}</td>
                     <td>R$ {{ "%.2f"|format(user.balance_pending/100) }}</td>
+                    <td>R$ {{ "%.2f"|format(user.total_depositos|default(0)/100) }}</td>
+                    <td>R$ {{ "%.2f"|format(user.total_saques|default(0)/100) }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="verUsuario({{ user.id }})">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -135,10 +190,14 @@
     </div>
 </div>
 
+<!-- Últimas Transações -->
 <div class="card-modern">
-    <h5 class="mb-3"><i class="bi bi-clock-history" style="color: #FF8C00;"></i> Últimas 20 Transações</h5>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5><i class="bi bi-clock-history" style="color: #FF8C00;"></i> Últimas 20 Transações</h5>
+        <span class="badge bg-info">{{ ultimas_transacoes|length }} registros</span>
+    </div>
     <div class="table-responsive">
-        <table class="table">
+        <table class="table table-hover">
             <thead>
                 <tr>
                     <th>ID</th>
@@ -146,18 +205,37 @@
                     <th>Tipo</th>
                     <th>Valor</th>
                     <th>Taxa</th>
+                    <th>Líquido</th>
                     <th>Status</th>
                     <th>Data</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="tabelaTransacoes">
                 {% for t in ultimas_transacoes %}
                 <tr>
                     <td>{{ t.id }}</td>
-                    <td>{{ t.user_id }}</td>
-                    <td>{{ t.type }}</td>
+                    <td>
+                        {% set user = usuarios|selectattr('id', 'equalto', t.user_id)|first %}
+                        {{ user.email if user else 'N/A' }}
+                    </td>
+                    <td>
+                        {% if t.type == 'deposit' %}
+                        <span class="badge bg-success">Depósito</span>
+                        {% elif t.type == 'withdraw' %}
+                        <span class="badge bg-warning text-dark">Saque</span>
+                        {% elif t.type == 'transfer_in' %}
+                        <span class="badge bg-info">Recebido</span>
+                        {% elif t.type == 'transfer_out' %}
+                        <span class="badge bg-secondary">Enviado</span>
+                        {% else %}
+                        <span class="badge bg-light text-dark">{{ t.type }}</span>
+                        {% endif %}
+                    </td>
                     <td>R$ {{ "%.2f"|format(t.amount/100) }}</td>
-                    <td>R$ {{ "%.2f"|format(t.taxa/100) }}</td>
+                    <td>R$ {{ "%.2f"|format(t.taxa|default(0)/100) }}</td>
+                    <td class="fw-bold {% if t.final_amount > 0 %}text-success{% else %}text-danger{% endif %}">
+                        R$ {{ "%.2f"|format(t.final_amount/100) }}
+                    </td>
                     <td>
                         {% if t.status == 'approved' %}
                         <span class="badge bg-success">Aprovado</span>
@@ -165,7 +243,7 @@
                         <span class="badge bg-warning">Pendente</span>
                         {% endif %}
                     </td>
-                    <td>{{ t.created_at.strftime("%d/%m/%Y %H:%M") }}</td>
+                    <td>{{ t.created_at.strftime("%d/%m/%Y %H:%M") if t.created_at else "N/A" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -178,4 +256,64 @@
         <i class="bi bi-box-arrow-right"></i> Sair do Painel Admin
     </a>
 </div>
+
+<!-- Script para atualização em tempo real e gráficos -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Atualização em tempo real a cada 10 segundos
+setInterval(function() {
+    fetch('/api/admin/stats')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('totalUsuarios').textContent = data.total_usuarios;
+            document.getElementById('totalTransacoes').textContent = data.total_transacoes;
+            document.getElementById('volumeTotal').textContent = 'R$ ' + data.volume_total.toFixed(2);
+            document.getElementById('transacoesHoje').textContent = data.transacoes_hoje;
+            
+            // Atualiza gráfico se existir
+            if (window.transacoesChart) {
+                window.transacoesChart.data.datasets[0].data = [
+                    data.depositos_hoje,
+                    data.saques_hoje,
+                    data.transferencias_hoje
+                ];
+                window.transacoesChart.update();
+            }
+        });
+}, 10000);
+
+// Gráfico de transações por tipo
+const ctx = document.getElementById('graficoTransacoes').getContext('2d');
+window.transacoesChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+        labels: ['Depósitos (hoje)', 'Saques (hoje)', 'Transferências (hoje)'],
+        datasets: [{
+            data: [
+                {{ depositos_hoje|default(0) }},
+                {{ saques_hoje|default(0) }},
+                {{ transferencias_hoje|default(0) }}
+            ],
+            backgroundColor: ['#28a745', '#ffc107', '#17a2b8'],
+            borderColor: '#000000',
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                labels: {
+                    color: '#ffffff'
+                }
+            }
+        }
+    }
+});
+
+function verUsuario(userId) {
+    window.location.href = '/admin/usuario/' + userId;
+}
+</script>
 {% endblock %}
