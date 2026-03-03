@@ -408,6 +408,194 @@ def admin_usuario_detalhe(request: Request, user_id: int, db: Session = Depends(
         "total_depositos": total_depositos / 100,
         "total_saques": total_saques / 100
     })
+# ==================== API ADMIN EM TEMPO REAL ====================
+@app.get("/api/admin/stats", response_class=JSONResponse)
+def api_admin_stats(request: Request, db: Session = Depends(get_db)):
+    """API para estatísticas em tempo real do admin"""
+    if not verificar_admin(request):
+        return JSONResponse({"erro": "Acesso negado"}, status_code=403)
+    
+    hoje = datetime.now().date()
+    
+    # Estatísticas gerais
+    total_usuarios = db.query(User).count()
+    total_transacoes = db.query(Transaction).count()
+    volume_total = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.status == 'approved'
+    ).scalar() or 0
+    
+    # Transações de hoje
+    depositos_hoje = db.query(func.count(Transaction.id)).filter(
+        Transaction.type == 'deposit',
+        func.date(Transaction.created_at) == hoje
+    ).scalar() or 0
+    
+    saques_hoje = db.query(func.count(Transaction.id)).filter(
+        Transaction.type == 'withdraw',
+        func.date(Transaction.created_at) == hoje
+    ).scalar() or 0
+    
+    transferencias_hoje = db.query(func.count(Transaction.id)).filter(
+        Transaction.type.in_(['transfer_in', 'transfer_out']),
+        func.date(Transaction.created_at) == hoje
+    ).scalar() or 0
+    
+    # Valores de hoje
+    valor_depositos_hoje = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.type == 'deposit',
+        Transaction.status == 'approved',
+        func.date(Transaction.created_at) == hoje
+    ).scalar() or 0
+    
+    valor_saques_hoje = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.type == 'withdraw',
+        Transaction.status == 'approved',
+        func.date(Transaction.created_at) == hoje
+    ).scalar() or 0
+    
+    return {
+        "total_usuarios": total_usuarios,
+        "total_transacoes": total_transacoes,
+        "volume_total": volume_total / 100,
+        "transacoes_hoje": depositos_hoje + saques_hoje + transferencias_hoje,
+        "depositos_hoje": depositos_hoje,
+        "saques_hoje": saques_hoje,
+        "transferencias_hoje": transferencias_hoje,
+        "valor_depositos_hoje": valor_depositos_hoje / 100,
+        "valor_saques_hoje": valor_saques_hoje / 100
+    }
+
+@app.get("/api/admin/usuarios", response_class=JSONResponse)
+def api_admin_usuarios(request: Request, db: Session = Depends(get_db)):
+    """API para listar usuários com dados em tempo real"""
+    if not verificar_admin(request):
+        return JSONResponse({"erro": "Acesso negado"}, status_code=403)
+    
+    usuarios = db.query(User).all()
+    resultado = []
+    
+    for user in usuarios:
+        # Calcula totais do usuário
+        total_depositos = db.query(func.sum(Transaction.final_amount)).filter(
+            Transaction.user_id == user.id,
+            Transaction.type == 'deposit',
+            Transaction.status == 'approved'
+        ).scalar() or 0
+        
+        total_saques = db.query(func.sum(Transaction.final_amount)).filter(
+            Transaction.user_id == user.id,
+            Transaction.type == 'withdraw',
+            Transaction.status == 'approved'
+        ).scalar() or 0
+        
+        resultado.append({
+            "id": user.id,
+            "nome": user.nome_completo,
+            "email": user.email,
+            "cpf": user.cpf,
+            "telefone": user.telefone,
+            "rota": user.rota,
+            "saldo": user.balance_available / 100,
+            "pendente": user.balance_pending / 100,
+            "total_depositos": total_depositos / 100,
+            "total_saques": total_saques / 100,
+            "criado_em": user.created_at.isoformat() if user.created_at else None
+        })
+    
+    return {"usuarios": resultado}
+
+@app.get("/api/admin/transacoes", response_class=JSONResponse)
+def api_admin_transacoes(request: Request, limite: int = 50, db: Session = Depends(get_db)):
+    """API para listar transações em tempo real"""
+    if not verificar_admin(request):
+        return JSONResponse({"erro": "Acesso negado"}, status_code=403)
+    
+    transacoes = db.query(Transaction).order_by(Transaction.id.desc()).limit(limite).all()
+    resultado = []
+    
+    for t in transacoes:
+        user = db.query(User).filter(User.id == t.user_id).first()
+        resultado.append({
+            "id": t.id,
+            "user_id": t.user_id,
+            "user_email": user.email if user else None,
+            "tipo": t.type,
+            "valor": t.amount / 100,
+            "taxa": (t.taxa or 0) / 100,
+            "final": t.final_amount / 100,
+            "status": t.status,
+            "criado_em": t.created_at.isoformat() if t.created_at else None
+        })
+    
+    return {"transacoes": resultado}
+
+@app.get("/admin/usuario/{user_id}", response_class=HTMLResponse)
+def admin_usuario_detalhe(request: Request, user_id: int, db: Session = Depends(get_db)):
+    """Página de detalhes do usuário para admin"""
+    if not verificar_admin(request):
+        return RedirectResponse(url="/admin-painel")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "user_logged_in": True,
+            "user_email": "ADMIN",
+            "error_message": "Usuário não encontrado",
+            "back_url": "/admin-dashboard"
+        })
+    
+    # Transações do usuário
+    transacoes = db.query(Transaction).filter(
+        Transaction.user_id == user_id
+    ).order_by(Transaction.id.desc()).all()
+    
+    # Estatísticas do usuário
+    total_depositos = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'deposit',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+    
+    total_saques = db.query(func.sum(Transaction.final_amount)).filter(
+        Transaction.user_id == user_id,
+        Transaction.type == 'withdraw',
+        Transaction.status == 'approved'
+    ).scalar() or 0
+    
+    return templates.TemplateResponse("admin_usuario.html", {
+        "request": request,
+        "user_logged_in": True,
+        "user_email": "ADMIN",
+        "usuario": user,
+        "transacoes": transacoes,
+        "total_depositos": total_depositos / 100,
+        "total_saques": total_saques / 100
+    })
+
+@app.post("/admin/resetar-senha")
+def admin_resetar_senha(request: Request, db: Session = Depends(get_db)):
+    """Reseta a senha de um usuário para 123456"""
+    if not verificar_admin(request):
+        return JSONResponse({"erro": "Acesso negado"}, status_code=403)
+    
+    data = request.json()
+    user_id = data.get("user_id")
+    nova_senha = data.get("nova_senha", "123456")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return JSONResponse({"erro": "Usuário não encontrado"}, status_code=404)
+    
+    # Atualiza a senha
+    user.password = hash_password(nova_senha)
+    db.commit()
+    
+    return JSONResponse({
+        "sucesso": True,
+        "mensagem": f"Senha resetada para {nova_senha}",
+        "email": user.email
+    })
 
 @app.get("/admin/logout")
 def admin_logout():
