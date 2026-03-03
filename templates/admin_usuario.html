@@ -13,26 +13,73 @@
         
         <div class="row">
             <div class="col-md-6">
-                <p><strong>ID:</strong> {{ usuario.id }}</p>
-                <p><strong>Nome:</strong> {{ usuario.nome_completo }}</p>
-                <p><strong>Email:</strong> {{ usuario.email }}</p>
-                <p><strong>CPF:</strong> {{ usuario.cpf[:3] }}.{{ usuario.cpf[3:6] }}.{{ usuario.cpf[6:9] }}-{{ usuario.cpf[9:] }}</p>
-                <p><strong>Telefone:</strong> ({{ usuario.telefone[:2] }}) {{ usuario.telefone[2:7] }}-{{ usuario.telefone[7:] }}</p>
+                <table class="table table-borderless">
+                    <tr>
+                        <th>ID:</th>
+                        <td>{{ usuario.id }}</td>
+                    </tr>
+                    <tr>
+                        <th>Nome Completo:</th>
+                        <td><strong>{{ usuario.nome_completo }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Email:</th>
+                        <td><strong>{{ usuario.email }}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>CPF:</th>
+                        <td>{{ usuario.cpf[:3] }}.{{ usuario.cpf[3:6] }}.{{ usuario.cpf[6:9] }}-{{ usuario.cpf[9:] }}</td>
+                    </tr>
+                    <tr>
+                        <th>Telefone:</th>
+                        <td>({{ usuario.telefone[:2] }}) {{ usuario.telefone[2:7] }}-{{ usuario.telefone[7:] }}</td>
+                    </tr>
+                </table>
             </div>
             <div class="col-md-6">
-                <p><strong>Rota:</strong> 
-                    {% if usuario.rota == 'black' %}
-                    <span class="badge bg-warning">Black</span>
-                    {% else %}
-                    <span class="badge bg-success">White</span>
-                    {% endif %}
-                </p>
-                <p><strong>Saldo Disponível:</strong> R$ {{ "%.2f"|format(usuario.balance_available/100) }}</p>
-                <p><strong>Saldo Pendente:</strong> R$ {{ "%.2f"|format(usuario.balance_pending/100) }}</p>
-                <p><strong>Total Depositado:</strong> R$ {{ "%.2f"|format(total_depositos) }}</p>
-                <p><strong>Total Sacado:</strong> R$ {{ "%.2f"|format(total_saques) }}</p>
-                <p><strong>Código Afiliado:</strong> {{ usuario.codigo_afiliado }}</p>
+                <table class="table table-borderless">
+                    <tr>
+                        <th>Rota:</th>
+                        <td>
+                            {% if usuario.rota == 'black' %}
+                            <span class="badge bg-warning">Black</span>
+                            {% else %}
+                            <span class="badge bg-success">White</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Saldo Disponível:</th>
+                        <td>R$ {{ "%.2f"|format(usuario.balance_available/100) }}</td>
+                    </tr>
+                    <tr>
+                        <th>Saldo Pendente:</th>
+                        <td>R$ {{ "%.2f"|format(usuario.balance_pending/100) }}</td>
+                    </tr>
+                    <tr>
+                        <th>Total Depositado:</th>
+                        <td>R$ {{ "%.2f"|format(total_depositos) }}</td>
+                    </tr>
+                    <tr>
+                        <th>Total Sacado:</th>
+                        <td>R$ {{ "%.2f"|format(total_saques) }}</td>
+                    </tr>
+                    <tr>
+                        <th>Código Afiliado:</th>
+                        <td><code>{{ usuario.codigo_afiliado }}</code></td>
+                    </tr>
+                    <tr>
+                        <th>Data Cadastro:</th>
+                        <td>{{ usuario.created_at.strftime("%d/%m/%Y %H:%M") if usuario.created_at else "N/A" }}</td>
+                    </tr>
+                </table>
             </div>
+        </div>
+        
+        <div class="mt-3">
+            <button class="btn btn-warning" onclick="resetarSenha({{ usuario.id }}, '{{ usuario.email }}')">
+                <i class="bi bi-key"></i> Resetar Senha (123456)
+            </button>
         </div>
     </div>
     
@@ -90,4 +137,32 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+function resetarSenha(userId, userEmail) {
+    if (confirm(`Tem certeza que deseja resetar a senha de ${userEmail}?\nA nova senha será: 123456`)) {
+        fetch('/admin/resetar-senha', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                nova_senha: '123456'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.sucesso) {
+                alert(`Senha resetada com sucesso!\nNova senha: 123456\nEmail: ${userEmail}`);
+            } else {
+                alert('Erro ao resetar senha: ' + data.erro);
+            }
+        })
+        .catch(error => {
+            alert('Erro ao comunicar com o servidor');
+        });
+    }
+}
+</script>
 {% endblock %}
