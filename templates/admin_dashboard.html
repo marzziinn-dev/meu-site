@@ -97,7 +97,7 @@
     </div>
 </div>
 
-<!-- LISTA DE USUÁRIOS COM TODOS OS DADOS -->
+<!-- LISTA DE USUÁRIOS - CORRIGIDA -->
 <div class="card-modern mb-4">
     <h5 class="mb-3"><i class="bi bi-people"></i> Todos os Usuários</h5>
     <div class="table-responsive">
@@ -120,8 +120,20 @@
                     <td>{{ user.id }}</td>
                     <td>{{ user.nome_completo }}</td>
                     <td><strong>{{ user.email }}</strong></td>
-                    <td>{{ user.cpf[:3] }}.{{ user.cpf[3:6] }}.{{ user.cpf[6:9] }}-{{ user.cpf[9:] }}</td>
-                    <td>({{ user.telefone[:2] }}) {{ user.telefone[2:7] }}-{{ user.telefone[7:] }}</td>
+                    <td>
+                        {% if user.cpf and user.cpf|length >= 11 %}
+                            {{ user.cpf[:3] }}.{{ user.cpf[3:6] }}.{{ user.cpf[6:9] }}-{{ user.cpf[9:] }}
+                        {% else %}
+                            <span class="text-muted">Não informado</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if user.telefone and user.telefone|length >= 10 %}
+                            ({{ user.telefone[:2] }}) {{ user.telefone[2:7] }}-{{ user.telefone[7:] }}
+                        {% else %}
+                            <span class="text-muted">Não informado</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if user.rota == 'black' %}
                         <span class="badge bg-warning">Black</span>
